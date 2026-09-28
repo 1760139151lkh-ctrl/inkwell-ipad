@@ -1311,6 +1311,24 @@ function publicResponse(status: number, body: string | null, headers: Record<str
     headers: { "content-type": "text/plain; charset=utf-8", ...PUBLIC_HEADERS, ...headers },
   });
 }
+const APP_OAUTH_CALLBACK = "inkwell://auth-callback";
+
+function oauthBounce(url: URL): Response {
+  const target = new URL(APP_OAUTH_CALLBACK);
+  // Only pass through what the app needs, and only if it looks like it should.
+  const verifier = url.searchParams.get("neon_auth_session_verifier");
+  if (verifier && /^[A-Za-z0-9._~-]{8,512}$/.test(verifier)) target.searchParams.set("neon_auth_session_verifier", verifier);
+  const error = url.searchParams.get("error");
+  if (error && /^[A-Za-z0-9_ .:-]{1,120}$/.test(error)) target.searchParams.set("error", error);
+  if (!target.searchParams.has("neon_auth_session_verifier") && !target.searchParams.has("error")) target.searchParams.set("error", "missing_verifier");
+  const href = target.toString();
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><title>Inkwell</title><meta name="viewport" content="width=device-width">` +
+      `<p style="font:16px -apple-system,sans-serif;text-align:center;margin-top:40vh">Returning to Inkwell…</p>`,
+    { status: 302, headers: { location: href, "content-type": "text/html; charset=utf-8", ...PUBLIC_HEADERS } },
+  );
+}
+
 const publicNotFound = () =>
   publicResponse(404, "Not found. This handoff link is invalid, expired, or revoked. Ask Pat to hand off the note again.\n");
 
@@ -1551,6 +1569,14 @@ async function route(req: Request): Promise<Response> {
 
   // Public: the handoff token in the path is the credential (no Bearer).
   if (path === "/h" || path.startsWith("/h/")) return publicHandoff(req, url, path);
+  // Public: end of "Sign in with Google" on the iPad (README § Accounts). Neon Auth only
+  // redirects to http(s) origins it trusts, so it lands here and we hand the one-time verifier
+  // to the app's own URL scheme. ASWebAuthenticationSession delivers it only to Inkwell, and
+  // the verifier is useless without the challenge cookie held by the app that started it.
+  if (path === "/auth/callback") {
+    if (m !== "GET" && m !== "HEAD") throw methodNotAllowed("GET");
+    return oauthBounce(url);
+  }
   // Public: liveness for the Settings → Backup status light (reveals nothing but the server time).
   if (path === "/api/health") {
     if (m !== "GET") throw methodNotAllowed("GET");

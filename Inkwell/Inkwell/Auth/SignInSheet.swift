@@ -15,6 +15,8 @@ struct SignInSheet: View {
     @State private var error: String?
     @State private var resendAt = Date.distantPast
     @State private var localNotes = 0
+    @State private var google = GoogleSignIn()
+    @State private var googleBusy = false
     @FocusState private var focused: Bool
 
     private var trimmedEmail: String { email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
@@ -79,10 +81,17 @@ struct SignInSheet: View {
 
     private var emailStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Back up your notes and open them on any iPad. We’ll email you a code — no password.")
+            Text("Back up your notes and open them on any iPad.")
                 .font(.system(size: 14.5))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+            googleButton
+            HStack(spacing: 10) {
+                Rectangle().fill(Theme.hairline).frame(height: 1)
+                Text("or use your email").font(.system(size: 12.5, weight: .medium)).foregroundStyle(Theme.textTertiary)
+                    .fixedSize()
+                Rectangle().fill(Theme.hairline).frame(height: 1)
+            }
             field {
                 TextField("you@example.com", text: $email)
                     .textContentType(.emailAddress)
@@ -148,7 +157,46 @@ struct SignInSheet: View {
         .padding(.vertical, 20)
     }
 
+    private var googleButton: some View {
+        Button { Task { await signInWithGoogle() } } label: {
+            HStack(spacing: 10) {
+                if googleBusy {
+                    ProgressView().tint(.black.opacity(0.6))
+                } else {
+                    Image("GoogleG").resizable().frame(width: 18, height: 18)
+                    Text("Continue with Google").font(.system(size: 15.5, weight: .semibold))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 46)
+            .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white))
+            .foregroundStyle(Color.black.opacity(0.87))
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(busy || googleBusy)
+        .accessibilityLabel("Continue with Google")
+    }
+
     // MARK: Actions
+
+    private func signInWithGoogle() async {
+        guard !busy, !googleBusy else { return }
+        googleBusy = true; error = nil
+        defer { googleBusy = false }
+        do {
+            switch try await google.run() {
+            case .cancelled:
+                return
+            case .signedIn(let user):
+                step = .finishing
+                try await accounts.didSignIn(user)
+                dismiss()
+            }
+        } catch {
+            self.error = error.localizedDescription
+            if step == .finishing && !accounts.isSignedIn { step = .email }
+        }
+    }
 
     private func sendCode() async {
         guard emailLooksValid, !busy else { return }

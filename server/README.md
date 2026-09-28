@@ -793,3 +793,29 @@ _Each link redirects to a download URL that is valid for 1 hour; fetch the link 
 - The links reach only this note's `export/` files and its live recordings' audio. There is no path parameter that can name another key.
 - The token isn't logged by the server. `Referrer-Policy: no-referrer` stops it leaking from the presigned redirect.
 - `handoffs` is hard-deleted with the note by `server/scripts/purge-note.mjs`, and with the account by `DELETE /api/account`.
+
+## Sign in with Google (iPad)
+
+Neon Auth (Managed) runs the Google OAuth; the iPad never sees Google tokens.
+
+1. The app calls `POST <auth>/sign-in/social {provider:"google", callbackURL:"<function>/auth/callback", disableRedirect:true}`
+   and keeps the `__Secure-neon-auth.session_challenge` cookie from that response.
+2. It opens the returned URL in `ASWebAuthenticationSession` (callback scheme `inkwell`).
+3. After Google, Neon Auth redirects to `GET /auth/callback?neon_auth_session_verifier=…` on this Function (public), which
+   302s to `inkwell://auth-callback?neon_auth_session_verifier=…` (verifier shape-checked; only `verifier`/`error` pass through).
+4. The app redeems it: `GET <auth>/get-session?neon_auth_session_verifier=…` with the challenge cookie → session cookie.
+   A verifier without that client's challenge cookie is useless (`SESSION_CHALLENGE_COOKIE_NOT_FOUND`).
+
+Neon Auth only redirects to trusted http(s) origins, so each branch trusts its Function origin:
+`neon neon-auth domain add https://<branch>-api.compute….neon.tech --branch <branch>`.
+
+**Google credentials.** Production currently uses Neon's *shared* Google keys (the consent screen says "neon.tech",
+and Neon calls them development-only). To use your own: Google Cloud Console → APIs & Services → Credentials → Create
+OAuth client ID → Web application, authorized redirect URI
+`https://ep-patient-haze-b44plhpj.neonauth.c-6.us-east-2.aws.neon.tech/neondb/auth/callback/google`, consent screen named
+"Inkwell"; then:
+
+    neon neon-auth oauth-provider update --provider-id google --branch production \
+      --oauth-client-id <client id> --oauth-client-secret <client secret>
+
+Google and email-code sign-in resolve to the same account when the email matches (both prove the address).

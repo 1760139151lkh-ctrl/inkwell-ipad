@@ -99,6 +99,58 @@ actor AuthClient {
         return token
     }
 
+    // MARK: Sign in with Google
+
+    /// The one-time start of a Google sign-in: where to send the browser, and the challenge
+    /// cookie that must accompany the verifier when it comes back.
+    struct GoogleStart: Sendable { var url: URL; var challengeCookie: String }
+
+    /// Neon Auth runs the Google OAuth (PKCE) and returns to our Function's /auth/callback,
+    /// which hands a one-time verifier to inkwell://auth-callback.
+    func startGoogle() async throws -> GoogleStart {
+        guard let base = AppConfig.authURL, let api = AppConfig.apiURL else { throw AuthError.notConfigured }
+        var req = URLRequest(url: base.appendingPathComponent("sign-in/social"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(Self.origin(of: base), forHTTPHeaderField: "Origin")
+        req.httpBody = try JSONSerialization.data(withJSONObject: [
+            "provider": "google",
+            "callbackURL": api.appendingPathComponent("auth/callback").absoluteString,
+            "errorCallbackURL": api.appendingPathComponent("auth/callback").absoluteString,
+            "disableRedirect": true,
+        ] as [String: Any])
+        let (data, http) = try await send(req)
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+        guard (200..<300).contains(http.statusCode) else { throw Self.mapError(status: http.statusCode, json: json) }
+        guard let s = json["url"] as? String, let url = URL(string: s), url.scheme == "https" else {
+            throw AuthError.server("Google sign-in isn’t available right now.")
+        }
+        let challenge = Self.cookies(in: http).filter { $0.name.contains("session_chall") }
+            .map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+        guard !challenge.isEmpty else { throw AuthError.server("Google sign-in couldn’t start. Try again.") }
+        return GoogleStart(url: url, challengeCookie: challenge)
+    }
+
+    /// Redeems the verifier from inkwell://auth-callback for a session.
+    func finishGoogle(verifier: String, start: GoogleStart) async throws -> User {
+        guard let base = AppConfig.authURL else { throw AuthError.notConfigured }
+        var comps = URLComponents(url: base.appendingPathComponent("get-session"), resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "neon_auth_session_verifier", value: verifier)]
+        var req = URLRequest(url: comps.url!)
+        req.setValue(start.challengeCookie, forHTTPHeaderField: "Cookie")
+        let (data, http) = try await send(req)
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+        guard (200..<300).contains(http.statusCode) else { throw Self.mapError(status: http.statusCode, json: json) }
+        guard let token = Self.sessionCookie(in: http), let u = json["user"] as? [String: Any], let id = u["id"] as? String else {
+            throw AuthError.server("Google sign-in didn’t finish. Try again.")
+        }
+        generation += 1
+        Keychain.write(Self.sessionKey, token)
+        jwt = nil
+        return User(id: id.lowercased(), email: (u["email"] as? String) ?? "",
+                    name: (u["name"] as? String).flatMap { $0.isEmpty ? nil : $0 })
+    }
+
     // MARK: Tokens
 
     /// A JWT for the Inkwell API, refreshed a minute before it expires. Concurrent callers
@@ -198,12 +250,14 @@ actor AuthClient {
 
     /// "<name>=<value>" of the session cookie in a response, if it set one.
     nonisolated static func sessionCookie(in http: HTTPURLResponse) -> String? {
-        guard let url = http.url else { return nil }
+        cookies(in: http).first { $0.name.hasSuffix("session_token") && !$0.value.isEmpty }.map { "\($0.name)=\($0.value)" }
+    }
+
+    nonisolated static func cookies(in http: HTTPURLResponse) -> [HTTPCookie] {
+        guard let url = http.url else { return [] }
         var fields: [String: String] = [:]
         for (k, v) in http.allHeaderFields { if let k = k as? String, let v = v as? String { fields[k] = v } }
-        let cookie = HTTPCookie.cookies(withResponseHeaderFields: fields, for: url)
-            .first { $0.name.hasSuffix("session_token") && !$0.value.isEmpty }
-        return cookie.map { "\($0.name)=\($0.value)" }
+        return HTTPCookie.cookies(withResponseHeaderFields: fields, for: url)
     }
 
     private func send(_ req: URLRequest) async throws -> (Data, HTTPURLResponse) {

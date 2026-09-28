@@ -68,6 +68,7 @@
 		BF7354336C5EF2F3885C9092 /* LiveTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA304CFD9FC02520AE0AE7A9 /* LiveTranscriber.swift */; };
 		C1D2D2D419AF5A9CA56B07B8 /* DemoSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 165B0437BC05C4AA74A685EA /* DemoSeeder.swift */; };
 		C2C318BD4C6286257E6D028D /* ContentManagerPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01D3ED036EDD501C05DA59F7 /* ContentManagerPanel.swift */; };
+		CCC0004B36CB82FB473F23EF /* GoogleSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2C57C760F57634D931F7BE5 /* GoogleSignIn.swift */; };
 		CEF77D6E817CD0AB44DCC839 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32A405FED6865FE98030970C /* Theme.swift */; };
 		D31069FEDC9ABECF65735282 /* NoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C6C1BD6289A63B9CF93712E /* NoteEditorView.swift */; };
 		D55D785B610E2A542FB39F8D /* line13.aiff in Resources */ = {isa = PBXBuildFile; fileRef = 82232AD880ACF5AD4B97B4D0 /* line13.aiff */; };
@@ -167,6 +168,7 @@
 		E8830F3B3BBA91F06D4FD665 /* HandoffTestSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffTestSeed.swift; sourceTree = "<group>"; };
 		EA3D55E0940961AF9BC2BBFC /* EditorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorModel.swift; sourceTree = "<group>"; };
 		ED6BB13A633150C3F4F7528C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		F2C57C760F57634D931F7BE5 /* GoogleSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignIn.swift; sourceTree = "<group>"; };
 		F44D2FE0D00AABAE8F0322B2 /* AppSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSession.swift; sourceTree = "<group>"; };
 		FB9E6BCED88EDB71BF64CA40 /* line00.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = line00.aiff; sourceTree = "<group>"; };
 		FD1B8F7469CAAD0006311F44 /* DiarizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiarizationTests.swift; sourceTree = "<group>"; };
@@ -339,6 +341,7 @@
 				FF2BA3DF1D2C8D91D3C10402 /* AccountManager.swift */,
 				F44D2FE0D00AABAE8F0322B2 /* AppSession.swift */,
 				4A21D0EB8EAA1F0FD64D3CBD /* AuthClient.swift */,
+				F2C57C760F57634D931F7BE5 /* GoogleSignIn.swift */,
 				7A9109CA073CC6FC8D12536E /* SignInSheet.swift */,
 				17C14AD84DF9690C2B31A8E0 /* StoreMerger.swift */,
 			);
@@ -545,6 +548,7 @@
 				595E4BF048D723686FA7D16D /* EditorModel+Elements.swift in Sources */,
 				27836306FFCAAC1B4662730C /* EditorModel.swift in Sources */,
 				FB8EB2C39A762A33E0EB0338 /* ElementLayer.swift in Sources */,
+				CCC0004B36CB82FB473F23EF /* GoogleSignIn.swift in Sources */,
 				601A9EE5A3B4779DFEB99739 /* HandoffBuilder.swift in Sources */,
 				E86F20DD8D860FECE9F9AF4E /* HandoffSheet.swift in Sources */,
 				4D4246222D91D3C2C9DB4F80 /* HandoffTestSeed.swift in Sources */,
