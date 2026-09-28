@@ -1,0 +1,54 @@
+name: Inkwell
+options:
+  bundleIdPrefix: studio.persimmons
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    TARGETED_DEVICE_FAMILY: "2"
+    DEVELOPMENT_TEAM: 39ZACC8H4P
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Inkwell:
+    type: application
+    platform: iOS
+    sources:
+      - path: Inkwell
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: studio.persimmons.inkwell
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: Inkwell/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+  InkwellTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: InkwellTests
+    dependencies:
+      - target: Inkwell
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+        PRODUCT_BUNDLE_IDENTIFIER: studio.persimmons.inkwell.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Inkwell.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Inkwell"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+schemes:
+  Inkwell:
+    build:
+      targets:
+        Inkwell: all
+        InkwellTests: [test]
+    test:
+      targets:
+        - InkwellTests

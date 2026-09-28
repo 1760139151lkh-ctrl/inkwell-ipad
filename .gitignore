@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+.neon
+node_modules/
+Inkwell/build/
+review/web/
+
+# Xcode / macOS
+xcuserdata/
+*.xcresult
+.DS_Store
+DerivedData/
+# Claude Code local settings
+.claude/settings.local.json

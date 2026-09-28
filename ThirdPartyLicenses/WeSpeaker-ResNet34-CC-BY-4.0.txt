@@ -1,0 +1,32 @@
+Speaker-embedding model: WeSpeaker "voxceleb_resnet34_LM"
+Shipped in Inkwell as Resources/SpeakerEmbedding.mlmodelc (converted to Core ML float16).
+
+Source:   https://huggingface.co/Wespeaker/wespeaker-voxceleb-resnet34-LM
+Project:  WeSpeaker — https://github.com/wenet-e2e/wespeaker
+Authors:  Hongji Wang, Chengdong Liang, Shuai Wang, Zhengyang Chen, Binbin Zhang,
+          Xu Xiang, Yanlei Zhao, Yanmin Qian and the WeSpeaker contributors.
+
+WEIGHTS LICENCE — Creative Commons Attribution 4.0 International (CC-BY-4.0)
+    https://creativecommons.org/licenses/by/4.0/
+You are free to share and adapt the material for any purpose, including commercially,
+provided you give appropriate credit, provide a link to the licence, and indicate if
+changes were made. Changes made here: the training-time classifier head was dropped and
+the network was converted to a Core ML float16 program. No retraining.
+
+MODEL DEFINITION CODE — Apache License 2.0
+    Copyright (c) 2021 Shuai Wang, 2022 Zhengyang Chen, 2023 Bing Han
+    https://www.apache.org/licenses/LICENSE-2.0
+Fetched at conversion time by tools/diarization/convert.py. Not redistributed in the app.
+
+TRAINING DATA — VoxCeleb 1 and 2, CC-BY-NC-4.0 (non-commercial, research use)
+    https://www.robots.ox.ac.uk/~vgg/data/voxceleb/
+    https://creativecommons.org/licenses/by-nc/4.0/
+The CC-BY-4.0 grant above covers the weights as published by WeSpeaker; it does not
+override the dataset's own non-commercial terms. Inkwell is personal software and is not
+distributed, which is why this is acceptable here. See tools/diarization/README.md before
+any commercial use or App Store submission.
+
+CITATION
+    H. Wang, C. Liang, S. Wang, Z. Chen, B. Zhang, X. Xiang, Y. Zhao, Y. Qian,
+    "Wespeaker: A Research and Production oriented Speaker Embedding Learning Toolkit",
+    ICASSP 2023.

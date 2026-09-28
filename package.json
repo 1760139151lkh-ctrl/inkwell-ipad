@@ -1,0 +1,24 @@
+{
+  "private": true,
+  "scripts": {
+    "db:apply": "node server/db/apply.mjs",
+    "typecheck": "tsc -p server",
+    "dev": "NEON_API_KEY=\"$(grep ^NEON_API_KEY= .env | cut -d= -f2-)\" INKWELL_API_TOKEN=\"$(grep ^INKWELL_API_TOKEN= .env.local | cut -d= -f2-)\" ELEVENLABS_API_KEY=\"$(grep ^ELEVENLABS_API_KEY= .env.local | cut -d= -f2-)\" neon dev --source ./server/api.ts --port 8788",
+    "deploy": "NEON_API_KEY=\"$(grep ^NEON_API_KEY= .env | cut -d= -f2-)\" neon deploy --env .env.local --no-env-pull",
+    "smoke": "server/smoke.sh",
+    "purge-note": "node server/scripts/purge-note.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1140.0",
+    "@aws-sdk/s3-request-presigner": "^3.1140.0",
+    "@neon/config": "^1.7.3",
+    "@neon/env": "^1.4.4",
+    "@neon/functions": "^0.11.0",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/pg": "^8.23.1",
+    "typescript": "^7.0.2"
+  }
+}

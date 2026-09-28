@@ -1,0 +1,93 @@
+{
+ "recordings": [
+  {
+   "name": "Kickoff call",
+   "lines": [
+    {
+     "voice": "Reed (English (US))",
+     "text": "Alright, we're all here. This is the kickoff for the client portal rebuild.",
+     "file": "line00.aiff",
+     "duration": 5.151
+    },
+    {
+     "voice": "Karen",
+     "text": "Before we start, are we still targeting the fifteenth? Because I don't think design lands in time.",
+     "file": "line01.aiff",
+     "duration": 5.772
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Let's move it to the twenty-second. That gives design a full extra week.",
+     "file": "line02.aiff",
+     "duration": 5.038
+    },
+    {
+     "voice": "Daniel",
+     "text": "That works for me. I can have the API contract done by Wednesday either way.",
+     "file": "line03.aiff",
+     "duration": 4.899
+    },
+    {
+     "voice": "Karen",
+     "text": "Good. I'll own the onboarding screens and the empty states.",
+     "file": "line04.aiff",
+     "duration": 3.275
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "One thing I want flagged. We still have no plan for migrating the old accounts.",
+     "file": "line05.aiff",
+     "duration": 5.758
+    },
+    {
+     "voice": "Daniel",
+     "text": "That's the risky one. There are about four thousand of them and the passwords are hashed differently.",
+     "file": "line06.aiff",
+     "duration": 5.004
+    },
+    {
+     "voice": "Karen",
+     "text": "Can we just force a reset on first login? It's one email.",
+     "file": "line07.aiff",
+     "duration": 3.601
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "I like that. Cleaner than trying to rehash everything. Daniel, can you scope it?",
+     "file": "line08.aiff",
+     "duration": 5.951
+    },
+    {
+     "voice": "Daniel",
+     "text": "Yes. I'll come back with a number on Thursday.",
+     "file": "line09.aiff",
+     "duration": 2.858
+    },
+    {
+     "voice": "Karen",
+     "text": "What about the pricing page? Is that in scope or are we leaving it?",
+     "file": "line10.aiff",
+     "duration": 3.711
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Leave it. It's a separate project and it'll swallow the timeline if we touch it.",
+     "file": "line11.aiff",
+     "duration": 5.198
+    },
+    {
+     "voice": "Daniel",
+     "text": "Agreed. One more thing, we need a decision on whether the portal gets its own subdomain.",
+     "file": "line12.aiff",
+     "duration": 5.123
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Let's go with a subdomain. I'll confirm with infra and send the recap by Monday.",
+     "file": "line13.aiff",
+     "duration": 5.742
+    }
+   ]
+  }
+ ]
+}
