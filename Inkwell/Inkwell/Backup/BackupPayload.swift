@@ -314,4 +314,10 @@ final class BackupUploader: NSObject, URLSessionTaskDelegate, @unchecked Sendabl
 
     /// Recreate the session on launch so pending events are delivered.
     nonisolated func reconnect() { _ = background }
+
+    /// Signing out / deleting the account: stop audio uploads started for it, so nothing
+    /// lands in the bucket after the account is gone.
+    nonisolated func cancelAll() async {
+        for task in await background.allTasks { task.cancel() }
+    }
 }

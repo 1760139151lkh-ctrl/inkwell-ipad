@@ -1,0 +1,75 @@
+{
+ "title": "Onboarding revamp - kickoff",
+ "recordings": [
+  {
+   "name": "Recording 1",
+   "lines": [
+    {
+     "voice": "Reed (English (US))",
+     "text": "Thanks for jumping on, everyone. The goal today is to lock the plan for the onboarding revamp.",
+     "file": "audio/h0_00.aiff",
+     "duration": 6.671
+    },
+    {
+     "voice": "Karen",
+     "text": "Quick context. Activation dropped from forty one percent to thirty four percent after the September release. Most people stall on the connect your calendar step.",
+     "file": "audio/h0_01.aiff",
+     "duration": 9.225
+    },
+    {
+     "voice": "Daniel",
+     "text": "That lines up with the logs. The Google sign in screen times out on mobile Safari about one in five times.",
+     "file": "audio/h0_02.aiff",
+     "duration": 6.72
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Okay, so the calendar step is the fire. Marcus, can you own a fix for the sign in timeout?",
+     "file": "audio/h0_03.aiff",
+     "duration": 6.783
+    },
+    {
+     "voice": "Daniel",
+     "text": "Yes. I'll ship a fix behind a feature flag by Thursday, and add a retry with a clearer error message.",
+     "file": "audio/h0_04.aiff",
+     "duration": 6.353
+    },
+    {
+     "voice": "Karen",
+     "text": "I'll rewrite the onboarding copy so the calendar step is optional, and I'll have the new flow in Figma by Wednesday.",
+     "file": "audio/h0_05.aiff",
+     "duration": 6.149
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Great. And I'll email our three pilot customers, Northwind, Globex and Initech, to set up feedback calls next week.",
+     "file": "audio/h0_06.aiff",
+     "duration": 8.701
+    }
+   ]
+  },
+  {
+   "name": "Recording 2",
+   "lines": [
+    {
+     "voice": "Karen",
+     "text": "One open question before we go. Do we keep the product tour, or cut it entirely?",
+     "file": "audio/h1_00.aiff",
+     "duration": 5.162
+    },
+    {
+     "voice": "Daniel",
+     "text": "The data says only eight percent of people finish it. I'd cut it, but legal wants the data consent screen to stay.",
+     "file": "audio/h1_01.aiff",
+     "duration": 6.789
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Let's cut the tour and keep the consent screen. Decision made. Next sync is Friday at ten.",
+     "file": "audio/h1_02.aiff",
+     "duration": 6.91
+    }
+   ]
+  }
+ ]
+}

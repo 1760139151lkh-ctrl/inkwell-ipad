@@ -20,6 +20,7 @@ import UIKit
         case working(Step)
         case ready(url: String, prompt: String, expires: Date?)
         case failed(String)
+        case needsSignIn(String)
     }
 
     private(set) var state: State = .working(.backup)
@@ -70,7 +71,7 @@ import UIKit
             try Task.checkCancellation()
 
             state = .working(.link)
-            guard let api = BackupEngine.shared.api else { throw BackupEngine.HandoffError(message: "Backup isn’t set up.") }
+            guard let api = BackupEngine.shared.api else { throw BackupEngine.HandoffError(message: BackupEngine.signInMessage, needsSignIn: true) }
             var pagesJSON: [[String: Any]] = []
             for i in package.pageImages.indices {
                 var page: [String: Any] = ["index": i, "text": package.pageText[safe: i] ?? ""]
@@ -96,6 +97,8 @@ import UIKit
             copy(prompt)
         } catch is CancellationError {
             return
+        } catch let e as BackupEngine.HandoffError where e.needsSignIn {
+            state = .needsSignIn(e.message)
         } catch {
             if Task.isCancelled { return }
             state = .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
@@ -138,6 +141,7 @@ import UIKit
 struct HandoffSheet: View {
     let editor: EditorModel
     @State private var controller = HandoffController()
+    @State private var showSignIn = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -165,6 +169,8 @@ struct HandoffSheet: View {
                 ready(url: url, prompt: prompt, expires: expires)
             case .failed(let message):
                 failed(message)
+            case .needsSignIn(let message):
+                signInPrompt(message)
             }
             Spacer(minLength: 0)
         }
@@ -242,6 +248,20 @@ struct HandoffSheet: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.textTertiary)
             }
+        }
+    }
+
+    private func signInPrompt(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(message)
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.textSecondary)
+            actionButton("Sign In", systemImage: "person.crop.circle", primary: true) { showSignIn = true }
+        }
+        .sheet(isPresented: $showSignIn, onDismiss: {
+            if AccountManager.shared.isSignedIn { controller.start(editor: editor) }
+        }) {
+            SignInSheet()
         }
     }
 

@@ -40,12 +40,12 @@ enum LibrarySelection: Hashable {
         guard note.id != editor?.note.id else { return }
         editor?.close()
         editor = EditorModel(note: note, context: context)
-        UserDefaults.standard.set(note.id.uuidString, forKey: "lastOpenNote")
+        UserDefaults.standard.set(note.id.uuidString, forKey: "lastOpenNote.\(StorageScope.current.id)")
     }
 
     /// Reopens the note that was open when the app last quit.
     func restoreLastNote() {
-        guard editor == nil, let s = UserDefaults.standard.string(forKey: "lastOpenNote"), let id = UUID(uuidString: s),
+        guard editor == nil, let s = UserDefaults.standard.string(forKey: "lastOpenNote.\(StorageScope.current.id)"), let id = UUID(uuidString: s),
               let note = try? context.fetch(FetchDescriptor<Note>(predicate: #Predicate { $0.id == id && $0.deletedAt == nil })).first
         else { return }
         if let subjectID = note.subject?.id { selection = .subject(subjectID) }

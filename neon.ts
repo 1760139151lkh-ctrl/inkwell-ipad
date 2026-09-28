@@ -11,8 +11,12 @@ export default defineConfig({
     api: {
       name: "api",
       source: "./server/api.ts",
-      // Bearer token for the iPad (PRD §8.3). Lives only in gitignored .env.local.
-      // Always deploy with: neon deploy --env .env.local
+      // Auth is Neon Auth JWTs (auth: true injects NEON_AUTH_JWKS_URL / NEON_AUTH_BASE_URL). INKWELL_API_TOKEN, the
+      // retired shared bearer token, is now only the second factor for POST /api/account/claim-legacy (README § Accounts).
+      // Lives only in gitignored .env.local. Always deploy with: neon deploy --env .env.local
+      // Optional quota overrides (defaults in server/api.ts): DIARIZE_MINUTES_PER_MONTH, HANDOFFS_PER_DAY,
+      // STORAGE_BYTES_PER_ACCOUNT — add them
+      // here only if you need non-default limits.
       // ELEVENLABS_API_KEY: speaker detection (Scribe v2 diarization), server/diarize.ts. Also only in .env.local.
       env: {
         INKWELL_API_TOKEN: process.env.INKWELL_API_TOKEN!,

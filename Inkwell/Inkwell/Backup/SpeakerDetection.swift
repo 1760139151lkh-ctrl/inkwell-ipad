@@ -31,6 +31,15 @@ import SwiftUI
 
     func attach(context: ModelContext) { self.context = context }
 
+    /// Account switch: stop polling and forget the old store.
+    func detach() {
+        for task in pollers.values { task.cancel() }
+        pollers = [:]
+        status = [:]
+        awaitingUpload = []
+        context = nil
+    }
+
     /// Can speaker detection run at all right now, for the engine that's selected?
     var isAvailable: Bool {
         switch AppSettings.shared.speakerEngine {

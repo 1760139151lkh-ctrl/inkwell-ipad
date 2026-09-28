@@ -1,0 +1,128 @@
+{
+ "recordings": [
+  {
+   "name": "Recording 1",
+   "lines": [
+    {
+     "voice": "Reed (English (US))",
+     "text": "Okay, thanks everyone for jumping on. This is the launch sync.",
+     "file": "audio/r0_00.aiff",
+     "duration": 4.799
+    },
+    {
+     "voice": "Karen",
+     "text": "Great. So first thing, we are not going to make Wednesday. I think we should move the launch to Friday.",
+     "file": "audio/r0_01.aiff",
+     "duration": 6.126
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Friday works. That gives us two more days for QA on the checkout flow.",
+     "file": "audio/r0_02.aiff",
+     "duration": 5.151
+    },
+    {
+     "voice": "Daniel",
+     "text": "On pricing, Marco is going to own the pricing page. He has the new tiers and the annual discount.",
+     "file": "audio/r0_03.aiff",
+     "duration": 5.994
+    },
+    {
+     "voice": "Karen",
+     "text": "One risk. Refunds are still manual. We need Stripe webhooks wired up before we open the doors.",
+     "file": "audio/r0_04.aiff",
+     "duration": 5.847
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Agreed. Let's make the webhook work the top engineering priority this week.",
+     "file": "audio/r0_05.aiff",
+     "duration": 5.343
+    },
+    {
+     "voice": "Daniel",
+     "text": "And the onboarding emails are drafted, they just need a final pass.",
+     "file": "audio/r0_06.aiff",
+     "duration": 3.985
+    },
+    {
+     "voice": "Karen",
+     "text": "What about the pricing page copy? Is that blocked on legal?",
+     "file": "audio/r0_07.aiff",
+     "duration": 3.455
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Not blocked. Legal only needs to see the refund language, nothing else on the page.",
+     "file": "audio/r0_08.aiff",
+     "duration": 6.014
+    },
+    {
+     "voice": "Daniel",
+     "text": "I can have the tiers laid out by Wednesday morning so there is time to react.",
+     "file": "audio/r0_09.aiff",
+     "duration": 4.034
+    },
+    {
+     "voice": "Karen",
+     "text": "Good. Let's also decide who is on call over the weekend after we ship.",
+     "file": "audio/r0_10.aiff",
+     "duration": 4.158
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "I'll take Saturday. Marco, can you cover Sunday if anything comes through?",
+     "file": "audio/r0_11.aiff",
+     "duration": 5.503
+    },
+    {
+     "voice": "Daniel",
+     "text": "Sunday works. I'll watch the refund queue and the webhook logs.",
+     "file": "audio/r0_12.aiff",
+     "duration": 3.73
+    },
+    {
+     "voice": "Karen",
+     "text": "One more thing. Do we announce on the mailing list the same day, or wait?",
+     "file": "audio/r0_13.aiff",
+     "duration": 4.314
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Same day. Sending it later just splits the traffic across two days.",
+     "file": "audio/r0_14.aiff",
+     "duration": 5.215
+    }
+   ]
+  },
+  {
+   "name": "Recording 2",
+   "lines": [
+    {
+     "voice": "Karen",
+     "text": "Quick follow up. Who actually signs off on the launch copy?",
+     "file": "audio/r1_00.aiff",
+     "duration": 3.617
+    },
+    {
+     "voice": "Reed (English (US))",
+     "text": "Let's say I have final sign off on copy, and legal reviews the refund language.",
+     "file": "audio/r1_01.aiff",
+     "duration": 5.518
+    },
+    {
+     "voice": "Daniel",
+     "text": "Perfect. I will send a recap and a Loom walkthrough by Monday.",
+     "file": "audio/r1_02.aiff",
+     "duration": 3.814
+    },
+    {
+     "voice": "Karen",
+     "text": "Sounds good. Talk Friday.",
+     "file": "audio/r1_03.aiff",
+     "duration": 1.873
+    }
+   ]
+  }
+ ]
+}

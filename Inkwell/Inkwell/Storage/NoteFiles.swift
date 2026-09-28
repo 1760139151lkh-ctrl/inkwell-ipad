@@ -10,12 +10,12 @@ import UIKit
 ///       audio/<recordingID>.m4a      (+ <recordingID>.caf while recording / before transcode)
 ///       transcript/<recordingID>.json
 nonisolated enum NoteFiles {
-    static let root: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let url = base.appendingPathComponent("Notes", isDirectory: true)
+    /// The current account's notes folder (see StorageScope).
+    static var root: URL {
+        let url = StorageScope.current.notesRoot
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
-    }()
+    }
 
     static func folder(_ noteID: UUID) -> URL {
         let url = root.appendingPathComponent(noteID.uuidString, isDirectory: true)

@@ -6,30 +6,40 @@ This is the one-way cloud backup for the Inkwell iPad app (PRD §8.3). The iPad 
 - **Data:** Neon Postgres (`server/db/schema.sql`) holds metadata, transcripts, and stroke timing. The private Neon bucket `uploads` holds the large files.
 - **Base URL (production branch):** `https://br-lucky-resonance-b44aj51v-api.compute.c-6.us-east-2.aws.neon.tech`
   - The same value is in `.env` as `NEON_FUNCTION_API_BASE_URL`.
-  - The URL is not secret. The token is.
+  - The URL is not secret.
+- **Staging (`phase4-staging`, a copy-on-write copy of production):** Function `https://br-spring-lake-b4qh5w77-api.compute.c-6.us-east-2.aws.neon.tech`, Auth `https://ep-blue-silence-b4f0jsrt.neonauth.c-6.us-east-2.aws.neon.tech/neondb/auth`.
 
 ```
-iPad ──HTTPS + Bearer──▶ /api/*  (Function) ──▶ Postgres
-  │                         └─ presigned URLs ─┐
-  └──── PUT/GET file bytes directly ───────────▶ bucket "uploads"
+iPad ──sign in──▶ Neon Auth (Managed Better Auth) ──▶ JWT (15 min)
+iPad ──HTTPS + Bearer JWT──▶ /api/*  (Function) ──▶ Postgres (RLS: one account's rows)
+  │                            └─ presigned URLs ─┐
+  └──── PUT/GET file bytes directly ──────────────▶ bucket "uploads"
 ```
 
 ## Auth
 
-Every `/api/*` route, including `/api/health`, requires this header (the public `/h/<token>` handoff links are the only exception, see [Agent handoff](#agent-handoff-phase-3)):
+Accounts are **Neon Auth** (Managed Better Auth): users and sessions live in the branch's `neon_auth` schema. Every `/api/*` route except `GET /api/health` requires a Neon Auth JWT (the public `/h/<token>` handoff links are the other exception, see [Agent handoff](#agent-handoff-phase-3)):
 
 ```
-Authorization: Bearer <INKWELL_API_TOKEN>
+Authorization: Bearer <Neon Auth JWT>
 ```
 
-- The server compares tokens in constant time.
-- A missing or wrong token gets `401 {"error":{"code":"unauthorized","message":"missing or invalid bearer token"}}`.
-- **Where the token lives:**
-  - In gitignored `.env.local` (`INKWELL_API_TOKEN=…`).
-  - As the Function env var (declared in `neon.ts`, uploaded by `neon deploy --env .env.local`).
-  - On the iPad, in the Keychain, entered once in Settings → Backup.
-- Never put the token in source code, git, or logs.
-- **To rotate it:** put a new value in `.env.local`, run `npm run deploy`, then re-enter it on the iPad.
+**Getting a JWT (iPad).** The Auth base URL is `NEON_AUTH_BASE_URL` of the branch (see above; it includes the `/neondb/auth` path).
+1. Sign in with **email OTP** (Better Auth `emailOtp`: send a code, then sign in with it). **Email+password is disabled on every branch**, and so are the organization plugin, allow-localhost and the shared Google provider (2026-09-28). Only accounts whose `emailVerified` is true can use the API; an OTP sign-in verifies the address. The session comes back **only as a cookie**: `Set-Cookie: __Secure-neon-auth.session_token=…`. The `token` field in the JSON body does **not** work as a bearer (verified on staging: 401; there is no `set-auth-token` header).
+2. Keep that cookie (name=value, verbatim) in the Keychain. It lasts 7 days and refreshes on use.
+3. `GET <auth>/token` with header `Cookie: __Secure-neon-auth.session_token=<value>` → `{"token":"<JWT>"}`. Cache the JWT until ~1 min before its `exp` (it lives 15 min), then fetch a new one. On a `401` from the API, fetch a new JWT once and retry; if `/token` itself fails, the session is gone: sign in again.
+4. Cookie-authenticated **POSTs** to Auth (e.g. `POST <auth>/sign-out`) also need `Origin: <auth origin>`, or they get `403 MISSING_OR_NULL_ORIGIN`. Unauthenticated POSTs (sign-up, sign-in) don't.
+
+**What the Function checks** (`verifyJwt` in `api.ts`, using `jose`):
+- EdDSA signature against the branch JWKS (`NEON_AUTH_JWKS_URL`, injected because `neon.ts` has `auth: true`).
+- `iss` **and** `aud` = `new URL(NEON_AUTH_BASE_URL).origin` (real tokens carry the Auth origin in both, e.g. `https://ep-blue-silence-b4f0jsrt.neonauth.c-6.us-east-2.aws.neon.tech`), `exp` with 30 s clock tolerance. The user id is `sub` (a uuid).
+- `exp` and `sub` must be present (`requiredClaims`).
+- The `neon_auth."user"` row, on every request: a deleted account, one that is `banned` (and not past `banExpires`), or one whose `emailVerified` isn't true gets 401 even while its JWT hasn't expired.
+- Missing, malformed, expired, wrongly signed, or `alg:none` tokens get `401` with `WWW-Authenticate: Bearer error="invalid_token"` and `{"error":{"code":"unauthorized","message":"…"}}`.
+- If the JWKS can't be fetched, the answer is `503 auth_unavailable` (retry), not 401, so the client doesn't throw away a good session.
+- **`INKWELL_API_TOKEN` (the old shared token) no longer authenticates anything.** It's only the second factor for [claiming the pre-accounts backup](#post-apiaccountclaim-legacy). It stays in `.env.local` and `neon.ts`.
+
+Sign-out doesn't revoke a JWT that was already issued; it expires within 15 min. Deleting the account does take effect at once (the user-row check above).
 
 ## Conventions
 
@@ -44,21 +54,26 @@ Authorization: Bearer <INKWELL_API_TOKEN>
 
 | status | code | when |
 |---|---|---|
-| 400 | `bad_request` | validation failed. `message` names the field, e.g. `recordings[0].started_at must be an ISO-8601 timestamp` |
-| 401 | `unauthorized` | bad or missing token |
-| 404 | `not_found` | unknown route or note |
+| 400 | `bad_request` | validation failed, or malformed `%`-encoding in the path. `message` names the field, e.g. `recordings[0].started_at must be an ISO-8601 timestamp` |
+| 401 | `unauthorized` | missing / invalid / expired JWT, or the account was deleted or banned. Has `WWW-Authenticate: Bearer error="invalid_token"` |
+| 403 | `forbidden` | `claim-legacy` without the right `X-Inkwell-Legacy-Token` |
+| 404 | `not_found` | unknown route, **or anything that isn't yours**: another account's note/subject/recording/handoff, an unclaimed pre-accounts row, or something that doesn't exist. Never 403, so ids can't be probed |
 | 405 | `method_not_allowed` | wrong method on a known path |
 | 409 | `foreign_key_violation` | e.g. `note.subject_id` points to a subject the server has never seen (send `subject` in the body) |
-| 409 | `id_conflict` | a recording or element id already belongs to a different note |
+| 409 | `id_conflict` | a recording or element id already belongs to a different note (of yours) |
 | 409 | `audio_not_uploaded` | `POST /api/recordings/:id/diarize` before the recording's `audio_key` is set or its object exists |
+| 409 | `already_claimed` | `claim-legacy` after another account claimed the pre-accounts backup |
 | 413 | `audio_too_long` | diarize on a recording over 4 h (or an object over 300 MB) |
-| 413 | `payload_too_large` | body > 16 MiB |
-| 500 | `internal` / `misconfigured` | server bug, or the token isn't set on the Function |
-| 429 | (Neon) | account-wide concurrency cap (100). Retry after `Retry-After` |
+| 413 | `payload_too_large` | body > 16 MiB, or an upload's `files[].size` over its cap (audio 500 MB, other files 50 MB) |
+| 429 | `quota_exceeded` | a per-account [quota](#quotas) is used up. `message` is human-readable; `details` has `limit`, `used`, `resets_at` |
+| 429 | (Neon, not JSON) | account-wide concurrency cap (100). Retry after `Retry-After` |
+| 500 | `internal` / `misconfigured` / `storage_error` | server bug, a missing Function env var, or bucket deletion failed during `DELETE /api/account` (nothing was deleted; retry) |
+| 503 | `auth_unavailable` | the Auth JWKS couldn't be fetched; retry |
 
 **Client retry policy:**
-- Retry 429, 5xx, and network errors with exponential backoff.
-- Do not retry 400, 401, 404, or 409 until something changes.
+- Retry Neon's 429, 5xx, 503, and network errors with exponential backoff.
+- On 401: get a fresh JWT once and retry; if that still 401s, sign in again.
+- Do not retry 400, 403, 404, 409, or `quota_exceeded` until something changes.
 
 ## Bucket key layout (predictable, one folder per note)
 
@@ -85,15 +100,19 @@ notes/<noteId>/export/page-<n>.png     # agent handoff: page n (1-based) as a PN
 
 ## Endpoints
 
-### `GET /api/health`
+### `GET /api/health` (public, no auth)
 ```json
 200 {"ok":true,"db":true,"time":"2026-09-25T16:58:31.545Z"}
 ```
-This checks the Postgres connection. Use it for the Settings → Backup status light.
+This checks the Postgres connection. Use it for the Settings → Backup status light. It needs no token (it reveals nothing but the time); use `GET /api/me` to check that the signed-in session works.
+
+**Every other endpoint below acts only on the caller's own data** (see [Accounts and ownership](#accounts-and-ownership)): anything belonging to another account, or to the unclaimed pre-accounts backup, is `404`.
 
 ### `PUT /api/notes/:id` — upsert one note's full metadata
 
 The whole body is written in **one transaction**. Always send the note's complete current state.
+
+**Ownership:** `404` for the whole request if the note id (or its [upload claim](#post-apiuploads--presigned-put-urls)) belongs to another account or to unclaimed legacy data, if `subject` / `note.subject_id` is another account's subject, or if any recording or element id already exists under another account. Otherwise every row written is the caller's.
 
 ```json
 {
@@ -184,17 +203,22 @@ Use this for subjects with no notes, or for renames and reordering without a not
 → 200 {"ok":true,"upserted":1}
 ```
 
+If any subject id exists under another account (or as unclaimed legacy data), the whole request is `404` and nothing is written.
+
 ### `POST /api/uploads` — presigned PUT URLs
 
 ```json
 {"noteId":"f284…","files":[
-  {"path":"drawing.pkdrawing","sha256":"95bf…","contentType":"application/octet-stream"},
-  {"path":"audio/a1b2….m4a","sha256":"…","contentType":"audio/mp4"}
+  {"path":"drawing.pkdrawing","sha256":"95bf…","contentType":"application/octet-stream","size":48213},
+  {"path":"audio/a1b2….m4a","sha256":"…","contentType":"audio/mp4","size":30512004}
 ]}
 ```
 
 - Each request takes 1–100 files.
 - `sha256` is **required**: 64 lowercase hex characters of the exact bytes you will PUT.
+- **`size` is required** (2026-09-28): the exact byte count you will PUT, an integer > 0. Caps: `audio/*` 500 MB, everything else 50 MB (`413 payload_too_large`). The URL is signed for exactly that `Content-Length`: a body of any other size gets `403` from storage. The response `headers` include `Content-Length`.
+- **Storage quota:** each presigned key is recorded in `object_ledger (key, owner_id, bytes)` (re-presigning a key replaces its size). If the account's total with these files would pass `STORAGE_BYTES_PER_ACCOUNT` (default 20 GiB) → `429 quota_exceeded`. The ledger counts what was presigned, not what finished uploading; account deletion and purge-note remove the entries. Files backed up before accounts existed aren't in the ledger.
+- **Ownership:** `noteId` must be yours: a note you've backed up, or a fresh client-generated id. A fresh id is **claimed** for your account here (`note_claims`), because the iPad presigns before its first `PUT /api/notes/:id`; from then on no other account can presign into it or create it. An id owned by another account, or by the unclaimed legacy backup, is `404`.
 
 **Response:**
 ```json
@@ -203,7 +227,7 @@ Use this for subjects with no notes, or for renames and reordering without a not
   "key":"notes/f284…/drawing.pkdrawing",
   "url":"https://…/uploads/notes/f284…/drawing.pkdrawing?X-Amz-Algorithm=…",
   "method":"PUT",
-  "headers":{"Content-Type":"application/octet-stream","x-amz-meta-sha256":"95bf…"},
+  "headers":{"Content-Type":"application/octet-stream","Content-Length":"48213","x-amz-meta-sha256":"95bf…"},
   "expires_at":"2026-09-25T17:58:32.377Z"
 }]}
 ```
@@ -228,6 +252,7 @@ Use this for subjects with no notes, or for renames and reordering without a not
 
 - Each request takes up to 500 keys.
 - Keys must follow the key layout above.
+- Every key must be under one of **your** notes (backed up or claimed by an upload, including tombstoned ones, so Recently Deleted restores work). One foreign key makes the whole request `404`.
 - The server doesn't check that an object exists. A missing object gives `404 NoSuchKey` when you GET the URL.
 - The GET response carries the `x-amz-meta-sha256` header, which is the hash declared at upload. Compare it with the hash of the downloaded bytes, or with the `*_sha256` from the note metadata.
 
@@ -237,7 +262,8 @@ Use this for subjects with no notes, or for renames and reordering without a not
 - **Tombstoned notes are included**, with `deleted_at` set. The client decides whether to restore them to Recently Deleted or skip them.
 - **`limit`** defaults to 200, with a maximum of 1000. The list is ordered by change time, then id. If `next_cursor` is non-null, call again with `cursor=<next_cursor>` and the same `since`.
 - **`urls=1`** adds a `urls` map, `{key: presigned GET url}` with 1 h expiry, to each note. That saves a `/api/downloads` round-trip.
-- **`subjects`** always contains **all** subjects, including tombstoned ones.
+- Only **your** notes are listed. Right after sign-up that's none, even if a pre-accounts backup exists: it appears once you [claim it](#post-apiaccountclaim-legacy).
+- **`subjects`** always contains **all of your** subjects, including tombstoned ones.
 - Transcripts and the strokes index are **not** in the list, to keep it light. `has_transcript` tells you which recordings have one. Fetch the details with `GET /api/notes/:id`.
 
 ```json
@@ -273,7 +299,7 @@ It returns everything for one note, including tombstoned recordings and elements
 }
 ```
 
-- `404` if the note has never been backed up.
+- `404` if the note has never been backed up, or isn't yours.
 - `400` if `:id` isn't a UUID.
 
 ### `DELETE /api/notes/:id` — tombstone
@@ -285,7 +311,7 @@ It returns everything for one note, including tombstoned recordings and elements
 - This is idempotent: the original `deleted_at` is kept.
 - The note's recordings and elements get the same `deleted_at`.
 - Bucket objects are **kept**, so a restore from Recently Deleted still works.
-- `404` means the note was never backed up. Treat that as success on the client.
+- `404` means the note was never backed up (or isn't yours). Treat that as success on the client.
 
 ---
 
@@ -340,9 +366,11 @@ There is no body. The recording must already be backed up with its audio: upload
 ```
 
 **Errors:**
-- `404 not_found`: the recording was never backed up.
+- `404 not_found`: the recording was never backed up, or isn't yours.
 - `409 audio_not_uploaded`: there's no `audio_key`, or the object isn't in the bucket yet. Retry after the upload and the PUT.
-- `413 audio_too_long`: the recording is longer than 4 h, or the object is over 300 MB.
+- `413 audio_too_long`: the recording is longer than 4 h, or the object is over 300 MB. "Longer" uses the **billable estimate** below, not just the client's `duration_s`.
+- `429 quota_exceeded`: starting this job would take the account past its [monthly diarization minutes](#quotas). Only POSTs that start a provider run count (new job, retry after `failed`, changed audio, `?force=1`); re-POSTing a running or `done` job is free.
+- **Billable estimate** (the client's `duration_s` is never trusted alone): `max(duration_s, object ContentLength / 16000)` seconds (HEAD of the audio object; 16000 B/s = a 128 kbps ceiling). That is charged up front to `usage_events` and **settled** to the provider's `audio_duration_s` when the job finishes (`diarization_jobs.usage_event_id`). A failed job keeps its up-front charge.
 - `500 misconfigured`: the key isn't set on the Function.
 
 ### `GET /api/recordings/:id/diarization` — poll
@@ -399,6 +427,8 @@ At about 1 min per 2 h of audio, that's far inside the limit.
 
 **Storage:** `diarization_jobs.result` keeps the diarized transcript even if a later `PUT /api/notes/:id` replaces the `transcripts` row.
 
+**Accounts:** the job row carries the requester's `owner_id`, and the background worker reads and writes under that owner's RLS context. The claim/fencing updates run inside the (owner-scoped) request; the provider call starts only after that request commits.
+
 ### What the iOS client must do
 
 - **Adopt the result.** On `done`, replace the recording's local transcript with `transcript`, including `engine` and per-segment `speaker`.
@@ -411,8 +441,98 @@ At about 1 min per 2 h of audio, that's far inside the limit.
 
 ---
 
+## Accounts and ownership
+
+### Ownership rules
+
+- Every app row has `owner_id` → `neon_auth."user"(id) on delete cascade`: `subjects`, `notes`, `recordings`, `transcripts`, `elements`, `strokes_index`, `diarization_jobs`, `handoffs` (plus `note_claims` and `usage_events`). Every write sets `owner_id` to the caller.
+- **`owner_id IS NULL` = a pre-accounts (legacy) row.** It's invisible to every account until [claimed](#post-apiaccountclaim-legacy). Touching a legacy id (PUT, upload, download, …) is `404`, exactly like another account's data.
+- **Not yours → `404`**, never 403: another account's rows, legacy rows, and ids that don't exist look the same. (A `PUT` of a brand-new id still succeeds, so `PUT` necessarily tells you an id is taken; ids are random UUIDs.)
+- **Note ids are claimed on first touch.** `note_claims(note_id, owner_id)` binds a client-generated note id to the first account that presigns an upload for it or PUTs it.
+- **Hard-deleted note ids are tombstoned forever.** `DELETE /api/account` and `purge-note.mjs` write every note id they remove (notes and claims) to `deleted_note_ids`; `app_foreign_ids()` treats those ids as someone else's, so re-using one is `404` for everybody (nobody can inherit stale objects or handoff links).
+- Child ids (recordings, elements) that already exist under another account make the whole `PUT /api/notes/:id` a `404`. A subject id that exists under another account makes `PUT /api/subjects` a `404` (nothing is silently skipped).
+
+### Row-level security (defense in depth)
+
+The Function connects as the branch owner role (`neondb_owner`, which has `BYPASSRLS`). The app checks above are the primary guard; Postgres RLS is the backstop:
+- NOLOGIN role **`inkwell_app`** (granted to the owner role `WITH SET TRUE`) has only `select/insert/update/delete` on the app tables and `object_ledger` (`select/insert/update` on `usage_events`, nothing on `legacy_claims`, `deleted_note_ids` or `neon_auth`).
+- Every app table has `enable` + `force row level security` and one policy for `inkwell_app`: `using / with check (owner_id = app_uid())`, where `app_uid()` = `nullif(current_setting('app.user_id', true), '')::uuid`. Legacy `NULL` rows never match.
+- **Every user request is one transaction:** `begin` → check the `neon_auth."user"` row (exists, email verified, not banned) → `select set_config('app.user_id', $uid, true), set_config('role', 'inkwell_app', true)` → handler → `commit`. Both settings are transaction-local, so they're safe through the pooler. Handlers get the request's client (`ctx.c`); there's no module-level `pool.query` on user paths.
+- `app_foreign_ids(table, ids[])` (security definer) answers "is any of these ids someone else's?" so a request can 404 cleanly instead of tripping an RLS error. If RLS ever does refuse a write (SQLSTATE 42501), the API maps it to `404`.
+- **Only these run as the owner role, outside RLS:** the public handoff token lookup (token hash → note, owner; the rest then runs under that owner), `claim-legacy`, `DELETE /api/account`, `GET /api/health`, and the maintenance scripts (`db/apply.mjs`, `scripts/purge-note.mjs`). Diarization's background worker runs under the job owner's context.
+- Verified on staging with a raw query: under `inkwell_app` with another user's `app.user_id` (or none), every app table shows 0 rows; `UPDATE notes` touches 0 rows; inserting a row owned by someone else fails with `new row violates row-level security policy`.
+
+### `GET /api/me`
+
+```json
+200 {"user":{"id":"658928e6-…","email":"pat@…","name":"Pat"},
+     "usage":{"diarization_minutes_month":12.4,"diarization_minutes_limit":600,"handoffs_today":3,"handoffs_limit":100,
+              "storage_bytes":734003200,"storage_limit_bytes":21474836480}}
+```
+Use it after sign-in to confirm the session works, and in Settings to show usage. `email`/`name` come from `neon_auth."user"`, not the JWT, so they're current.
+
+### `POST /api/account/claim-legacy`
+
+Moves the **pre-accounts backup** (every row with `owner_id IS NULL`, i.e. everything backed up with the old shared token) to the caller. Needs both the JWT and the old token as a second factor:
+
+```
+Authorization: Bearer <JWT>
+X-Inkwell-Legacy-Token: <INKWELL_API_TOKEN>
+```
+```json
+200 {"claimed":{"subjects":3,"notes":12,"recordings":18,"transcripts":18,"elements":2,"strokes_index":12,"diarization_jobs":12,"handoffs":2}}
+```
+- One transaction, as the owner role: `update <table> set owner_id = <uid> where owner_id is null` for all eight tables, and records `legacy_claims` (a one-row table: `claimed_by`, `claimed_at`, `counts` of the first claim).
+- The legacy token is compared in constant time. Missing or wrong → `403 forbidden`.
+- **Idempotent** for the same account: a second call returns all zeros.
+- Once one account has claimed, any other account gets `409 already_claimed`.
+- **iPad flow:** on the first sign-in on a device that still has the old token in its Keychain, call this **before the first backup** (otherwise the backup's PUTs of existing note ids get `404`, because those ids are still legacy). On `200` or `409`, delete the old token from the Keychain.
+
+### `DELETE /api/account`
+
+```json
+{"confirm":"delete my account"}
+→ 200 {"deleted":{"notes":12,"objects":57}}
+```
+- Any other body → `400`.
+- First deletes every bucket object under `notes/<id>/` for every note id the account owns **or has claimed** (so files uploaded before their first PUT go too), including tombstoned notes.
+- Then, in the same transaction, tombstones every one of those note ids in `deleted_note_ids` and deletes the `neon_auth."user"` row. The FK cascades remove every app row (including `object_ledger` and `usage_events`), plus the account's sessions and linked logins.
+- **Objects first.** If any object deletion fails: `500 storage_error` and nothing else is deleted, so a retry is safe.
+- The account's JWTs get `401` immediately afterwards (the per-request user-row check).
+
+### Quotas
+
+Per account, UTC. Diarization and handoffs are counted in the `usage_events` ledger (so deleting a note or revoking a link doesn't refund anything); storage in `object_ledger`:
+
+| env var (optional) | default | counts | window |
+|---|---|---|---|
+| `DIARIZE_MINUTES_PER_MONTH` | 600 | billable minutes of each diarization POST that starts a provider run (estimate up front, settled to the provider's measured duration; see [Speaker detection](#post-apirecordingsiddiarize--start-idempotent)) | calendar month |
+| `HANDOFFS_PER_DAY` | 100 | each successful `POST /api/notes/:id/handoff` | calendar day |
+| `STORAGE_BYTES_PER_ACCOUNT` | 21474836480 (20 GiB) | sum of `object_ledger.bytes` (declared sizes of presigned uploads) | total, not windowed |
+
+- Over the limit → `429 {"error":{"code":"quota_exceeded","message":"Speaker detection is limited to 600 minutes of audio per month. You've used 599 and this recording is 2. The limit resets 2026-10-01 (UTC).","details":{"limit":600,"used":599,"requested":2,"resets_at":"2026-10-01T00:00:00.000Z"}}}`. Show `message` as-is.
+- The check and the ledger insert run under a per-account advisory lock, so concurrent requests can't both slip under the limit.
+- The defaults need no config. To change a limit, add the var to `functions.api.env` in `neon.ts` and to `.env.local`, then deploy.
+
+### Production cutover runbook
+
+Rehearsed on `phase4-staging` (a copy of production). In order:
+
+1. **Neon Auth on production** is already enabled (`neon neon-auth status --branch production` → Base URL `https://ep-patient-haze-b44plhpj.neonauth.c-6.us-east-2.aws.neon.tech/neondb/auth`, checked 2026-09-28). The iPad's production Auth URL is that value. Configure custom SMTP before real users sign up (Neon's shared SMTP is for development).
+2. **Apply the schema:** `node server/db/apply.mjs` (the linked branch; check the printed `target:` is production's `ep-patient-haze-…`). It's additive and idempotent: the old Function keeps working (it connects as the owner, which bypasses RLS, and doesn't set `owner_id`). Rows the old Function writes in the meantime stay `NULL` = legacy, and are claimed with the rest.
+3. **Deploy the Function:** `npm run typecheck`, then `npm run deploy` (production). From this moment the old shared token is rejected (401) and the iPad must sign in.
+4. **Don't smoke-test production with synthetic accounts** (email+password stays off there; see [Smoke-test accounts](#smoke-test-accounts-staging-only)). Run the smoke on staging with the same code, then verify production with the real account from the iPad: `GET /api/me` is 200, `GET /api/notes` lists only that account's notes.
+5. **Ship the iPad build** that signs in, then calls `POST /api/account/claim-legacy` with the Keychain's old token before its first backup (see above). Pat signs up / in on his iPad; his 12-ish notes move to his account.
+6. **Verify** (owner role): `select claimed_by, claimed_at, counts from legacy_claims;` shows Pat's user id; `select count(*) from notes where owner_id is null;` is 0 (repeat for the other seven tables); `GET /api/notes` on the iPad lists his notes; an old handoff link that hasn't expired works again.
+7. **Afterwards:** `INKWELL_API_TOKEN` can stay (it only guards the one-time claim). Once `legacy_claims` is set and no `NULL` rows remain, it has no further use; you may leave it or rotate it to a random value.
+
+Rollback: redeploy the previous `api.ts`. The schema changes don't break it (owner role bypasses RLS; `owner_id` is nullable).
+
+---
+
 ## Recommended iOS backup order (per dirty note)
 
+0. Have a fresh JWT (see [Auth](#auth)); after a first sign-in on a device with the old token, [claim the legacy backup](#post-apiaccountclaim-legacy) first.
 1. Hash the changed files with SHA-256, comparing against what was last backed up.
 2. Call `POST /api/uploads` with only the changed files.
 3. PUT the bytes to each URL with the returned headers. Use a background `URLSession` for audio, and upload audio only after the recording stops.
@@ -446,30 +566,60 @@ Metadata is written after the files, so the server never points at a missing obj
 Everything runs from the repo root. `NEON_API_KEY` is read from `.env` by the npm scripts. Never `source .env`, because `DATABASE_URL` contains `&`.
 
 ```bash
-npm run db:apply     # apply server/db/schema.sql (idempotent) to the linked branch
+npm run db:apply     # apply server/db/schema.sql (idempotent) to the linked branch (prints the target host)
 npm run typecheck    # tsc on server/api.ts
 npm run dev          # local Functions dev server on http://localhost:8788 (real branch DB + bucket!)
-npm run deploy       # neon deploy --env .env.local --no-env-pull  (uploads INKWELL_API_TOKEN)
-npm run smoke        # end-to-end test against the deployed URL (or: server/smoke.sh http://localhost:8788)
-SMOKE_DIARIZE=1 npm run smoke   # + real speaker-detection run on an 83 s, 3-voice clip (~$0.005, ~10 s; needs ffmpeg)
-npm run purge-note -- <noteId> [--subject <subjectId>]   # HARD delete rows + objects (admin only)
+npm run deploy       # neon deploy --env .env.local --no-env-pull  → PRODUCTION (the linked branch)
+JWT_A=… JWT_B=… [JWT_C=…] npm run smoke    # end-to-end test against the deployed URL (see below)
+SMOKE_DIARIZE=1 …  npm run smoke   # + real speaker-detection run on an 83 s, 3-voice clip (~$0.005, ~10 s; needs ffmpeg)
+npm run purge-note -- <noteId> [--subject <subjectId>] [--env-file <file>]   # HARD delete rows + objects (admin only)
 ```
 
-- **Deploy loop:** edit `server/api.ts`, then `npm run typecheck`, then `neon config plan --env .env.local`, then `npm run deploy`, then `npm run smoke`.
+**Another branch (e.g. `phase4-staging`)** — never `neon checkout`/`neon link` (that re-points the repo):
+```bash
+K="$(grep ^NEON_API_KEY= .env | cut -d= -f2- | tr -d '"')"
+NEON_API_KEY="$K" neon env pull --branch phase4-staging --file /tmp/…/staging.env   # outside the repo
+node server/db/apply.mjs --env-file /tmp/…/staging.env
+NEON_API_KEY="$K" neon deploy --branch phase4-staging --env .env.local --no-env-pull
+SMOKE_ENV_FILE=/tmp/…/staging.env JWT_A=… JWT_B=… JWT_C=… server/smoke.sh
+node server/scripts/purge-note.mjs <noteId> --env-file /tmp/…/staging.env
+```
+`db/apply.mjs` and `purge-note.mjs` also accept `DATABASE_URL=…` in the process env (it then beats any file's `DATABASE_URL_UNPOOLED`). `purge-note.mjs` refuses to run if the DB and `AWS_ENDPOINT_URL_S3` are on different branches, or if the role lacks `BYPASSRLS` (with forced RLS it would silently delete nothing).
+
+- **Deploy loop:** edit `server/api.ts`, then `npm run typecheck`, then `neon config plan --env .env.local`, then deploy (staging first), then smoke.
 - **Always deploy with `--env .env.local`.** `neon.ts` reads `process.env.INKWELL_API_TOKEN!`. Without the file, `defineConfig` throws, which is intentional: it's safer than uploading an empty token.
 - **`--no-env-pull`** keeps `neon deploy` from rewriting `.env` or `.env.local`.
 
-**`smoke.sh`** (~5 s):
+#### Smoke-test accounts (staging only)
+
+Email+password is disabled on every branch, and the API only accepts verified emails. Don't fake auth by inserting users with SQL. On **staging only**:
+1. `NEON_API_KEY=… neon neon-auth config email-password update --branch phase4-staging --enabled true`
+2. Sign up throwaway users `inkwell-staging-<x>@example.test` with `POST <auth>/sign-up/email` (send `Origin: <auth origin>`), keeping the passwords outside the repo.
+3. Mark only those test users verified: `update neon_auth."user" set "emailVerified" = true where email in (…) and email like '%@example.test'` (owner role). Leave one unverified for `JWT_U`.
+4. Get JWTs (sign in → `GET <auth>/token` with the session cookie) and run the smoke.
+5. `… email-password update --branch phase4-staging --enabled false`, then `delete from neon_auth."user" where email like 'inkwell-staging-%@example.test'`.
+
+**`smoke.sh`** (~20 s; ~40 s with `SMOKE_DIARIZE=1`) needs two accounts' JWTs: `JWT_A` runs the lifecycle, `JWT_B` must be locked out of it. Optional `JWT_C` is a **throwaway** account the test deletes. `SMOKE_CLAIM=1` also claims the legacy rows for A (staging copies only). `SMOKE_ENV_FILE` picks the branch (base URL + purge credentials). Get a JWT: `POST <auth>/sign-in/email`, then `GET <auth>/token` with the returned `__Secure-neon-auth.session_token` cookie.
+- Auth: `/api/health` without a token is 200; no token, a garbage token, the legacy shared token as a bearer, a re-signed expired token and an `alg:none` token are all 401 with `WWW-Authenticate`; with `JWT_U`, a valid JWT of an unverified account is 401; `/api/me` for A and B.
+- Uploads: missing / zero `size` → 400, over the caps → 413, a body 1 byte larger than the signed size → 403, `Content-Length` in the returned headers, `/api/me` `storage_bytes`; malformed `%`-encoding in the path → 400.
+- A presigns an upload **before** the first PUT (claims the note id) and B can't presign into it; A `PUT /api/subjects`.
+- **B vs A (all 404):** get, list (no A notes or subjects), overwrite A's note, a new note carrying A's recording id / element id / subject / subject_id, `PUT /api/subjects` with A's subject, presign, download, delete, diarize, diarization poll, handoff, revoke. Then A's note and handoff link are checked unchanged, and B's own note is invisible to A.
+- A diarize request (`202`) and handoff are counted by `/api/me`.
+- Legacy claim: no header / wrong token → 403, legacy token without JWT → 401; with `SMOKE_CLAIM=1`: A claims, lists them, B lists none, B's claim is 409, A's second claim is all zeros.
+- With `JWT_C`: C uploads + PUTs a note, `DELETE /api/account` without the phrase is 400, with it 200 `{notes:1, objects:1}`, the object's presigned GET is then 404 and C's JWT is 401; A can't presign into or PUT C's deleted (tombstoned) note id (404).
+- With `SMOKE_DIARIZE=1`, also checks the charge was settled to the provider's `audio_duration_s`.
+- The rest is the pre-accounts suite, as user A:
 - Creates a throwaway subject, note, recording, transcript, strokes index, and element.
-- Exercises every route, including auth failures and validation.
+- Exercises every route, including validation.
 - Uploads 4 KiB of random bytes through a presigned URL and downloads them again.
 - Compares SHA-256.
 - Checks tombstoning on re-PUT and on DELETE.
 - Checks `speaker_names` (set, kept when omitted, validated) and the diarize contract (`none`, 409 before the audio exists, 404).
 - With `SMOKE_DIARIZE=1`, it builds a meeting from `review/demo-assets` (15 `say` clips, 3 voices, 0.6 s gaps), uploads it, diarizes it, polls, and checks three things: at least 2 speakers, every segment inside one clip within ±0.35 s, and exactly one label per voice.
 - Checks the agent handoff: 3 recordings (2 diarized with per-recording name overrides, 1 plain), uploads `export/notes.pdf` + `export/page-1.png`, POSTs a handoff, then fetches `/h/<token>` **without auth** and checks the headers, speaker names, moment windows across recordings 1 and 2, the transcript, the file redirects (bytes compared), `?format=json`, `HEAD`, 404s, and revoke. `SMOKE_HANDOFF_OUT=/path/brief.md` saves the rendered briefing.
-- Then **hard-deletes** the test rows and objects with `server/scripts/purge-note.mjs`, including `diarization_jobs` and `handoffs`.
-- It reads the token from `.env.local` and never prints it.
+- Then **hard-deletes** the test objects and rows with `server/scripts/purge-note.mjs`, including `diarization_jobs`, `handoffs`, `note_claims` and `object_ledger` (and tombstones the ids).
+- It reads the legacy token from `.env.local` and never prints tokens.
+- Last staging runs (2026-09-28, after the security fixes): with `JWT_C` + `JWT_U` **139 passed, 0 failed**; with `SMOKE_DIARIZE=1` as well, every check passed except the 4 `SMOKE_CLAIM=1` checks, because staging's legacy rows had already been claimed and deleted. The claim flow itself passed earlier (136/0).
 
 **Files:**
 
@@ -479,9 +629,9 @@ npm run purge-note -- <noteId> [--subject <subjectId>]   # HARD delete rows + ob
 | `server/diarize.ts` | speaker detection: the Scribe call and the word → segment shaping (pure) |
 | `server/handoff.ts` | agent handoff: builds the Markdown / JSON briefing (pure) |
 | `server/db/schema.sql` | PRD §8.3 DDL (idempotent) plus additive columns and indexes |
-| `server/db/apply.mjs` | applies the schema |
-| `server/scripts/purge-note.mjs` | hard delete (the core of a future 30-day tombstone purge) |
-| `server/scripts/env.mjs` | `.env` reader for scripts |
+| `server/db/apply.mjs` | applies the schema (`--env-file` / `DATABASE_URL` for another branch) |
+| `server/scripts/purge-note.mjs` | hard delete, as the owner role: bucket objects first, then rows + `object_ledger`, then a `deleted_note_ids` tombstone (the core of a future 30-day tombstone purge) |
+| `server/scripts/env.mjs` | `.env` reader for scripts (layers: process env > `--env-file` > `.env.local` > `.env`) |
 | `server/smoke.sh` | E2E test |
 
 ### Schema notes
@@ -492,7 +642,8 @@ npm run purge-note -- <noteId> [--subject <subjectId>]   # HARD delete rows + ob
   - `recordings.transcript_status text`
   - `notes.speaker_names jsonb not null default '{}'`, plus the `diarization_jobs` table (one row per recording). See [Speaker detection](#speaker-detection-diarization).
   - The `handoffs` table (`token_hash` pk, `note_id`, `payload`, `created_at`, `expires_at`, `revoked_at`). See [Agent handoff](#agent-handoff-phase-3). Expired rows are harmless; a future purge can delete `expires_at < now() - interval '30 days'`.
-- **Indexes** on `notes(modified_at)`, `notes(subject_id)`, `recordings(note_id)`, and `elements(note_id)`.
+- **Accounts** (see [Accounts and ownership](#accounts-and-ownership)): nullable `owner_id uuid references neon_auth."user"(id) on delete cascade` on the eight app tables; tables `note_claims`, `legacy_claims` (one row), `usage_events` (quota ledger, `diarization_jobs.usage_event_id` links a job's charge), `object_ledger` (storage quota), `deleted_note_ids` (permanent tombstones, owner-only); role `inkwell_app`; functions `app_uid()` and `app_foreign_ids()`; forced RLS with an `owner_only` policy per table. `apply.mjs` refuses to run before Neon Auth is enabled (the `neon_auth` schema must exist).
+- **Indexes** on `notes(modified_at)`, `notes(owner_id, modified_at)`, `notes(subject_id)`, `recordings(note_id)`, `elements(note_id)`, `owner_id` on every owned table, `handoffs(owner_id, created_at)`, and `usage_events(owner_id, kind, created_at)`.
 - **`transcripts.search`** is a generated `tsvector` column with a GIN index. For example: `select … from transcripts where search @@ websearch_to_tsquery('english', 'fourier')`.
 - **Dividers (P1)** have no table yet. `subjects.divider_id` is stored, but divider names and order aren't. Add a `dividers` table and a `PUT /api/dividers` when P1 dividers land.
 - **Tombstone purge** is not automated yet. The PRD says to keep tombstones for 30 days. A Neon Function Trigger (`type: "schedule"`, daily) could run the `purge-note.mjs` logic for `deleted_at < now() - interval '30 days'`.
@@ -525,7 +676,7 @@ Many agents can only fetch a URL as plain text (no auth headers, no JavaScript).
 - **`moments`** (optional): `page` is 0-based. `bbox` is `[x,y,w,h]` in **page-local** points (origin at that page's top-left, unlike `strokes_index`, which uses canvas points; the page PNG is 2.5 px per point), or null. `t_start` / `t_end` are **note-timeline seconds**: the note's live recordings laid end to end in `ord` order, the same clock as `strokes_index.t_note`. Send `null` for both when no audio was running; those moments appear only under the page they're on ("written while no recording was running"). A missing or smaller `t_end` becomes `t_start`. At most 5000.
 - **`expires_in_days`** (optional): 1–365, default 30.
 - **`time_zone`** (optional, an addition to the original contract): IANA zone for wall-clock times in the briefing. Send `TimeZone.current.identifier`. Default `America/New_York`. An invalid zone is `400`.
-- `404 not_found`: the note was never backed up, or it's deleted. `400 bad_request`: validation (the message names the field).
+- `404 not_found`: the note was never backed up, it's deleted, or it isn't yours. `400 bad_request`: validation (the message names the field). `429 quota_exceeded`: the account already created its [daily handoff links](#quotas).
 
 ```json
 200 {"url":"https://br-lucky-resonance-b44aj51v-api.compute.c-6.us-east-2.aws.neon.tech/h/<43-char token>",
@@ -542,6 +693,7 @@ Many agents can only fetch a URL as plain text (no auth headers, no JavaScript).
 
 - `200 text/markdown; charset=utf-8`: the briefing (below). `?format=json` returns the same data as JSON (`application/json`), with note-timeline and recording-relative times per segment.
 - `404 text/plain`: an unknown, malformed, expired, or revoked token, or the note has been deleted. The body is one short sentence.
+- **Accounts:** the only query outside RLS maps the token hash to its note and owner (and `404`s if that owner is banned); everything else (note, recordings, transcripts, speaker names, file keys) is read under that owner's RLS context, and the note must belong to that owner. Links minted before accounts existed have no owner and return `404` until the pre-accounts backup is [claimed](#post-apiaccountclaim-legacy); then they work again (if not expired).
 - Every `/h/…` response has `X-Robots-Tag: noindex, nofollow`, `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer`, and `Access-Control-Allow-Origin: *`. `HEAD` works too.
 
 ### `GET /h/<token>/notes.pdf`, `/h/<token>/page/<n>.png`, `/h/<token>/audio/<n>.m4a` (public)
@@ -558,7 +710,7 @@ Revokes one link. It's idempotent: the first `revoked_at` is kept.
 200 {"ok":true,"note_id":"f284…","revoked_at":"2026-09-28T16:01:01.912Z"}
 ```
 
-`404` for an unknown token.
+`404` for an unknown token, or one minted by another account.
 
 ### The briefing
 
@@ -640,4 +792,4 @@ _Each link redirects to a download URL that is valid for 1 hour; fetch the link 
 - Anyone holding the URL can read the note until it expires, including the audio. That's the point (paste it into any agent). Revoke with `DELETE /api/handoffs/<token>`, or delete the note (a deleted note's links 404 at once).
 - The links reach only this note's `export/` files and its live recordings' audio. There is no path parameter that can name another key.
 - The token isn't logged by the server. `Referrer-Policy: no-referrer` stops it leaking from the presigned redirect.
-- `handoffs` is hard-deleted with the note by `server/scripts/purge-note.mjs`.
+- `handoffs` is hard-deleted with the note by `server/scripts/purge-note.mjs`, and with the account by `DELETE /api/account`.

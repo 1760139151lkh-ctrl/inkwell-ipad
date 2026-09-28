@@ -36,7 +36,6 @@ enum SpeakerEngine: String, CaseIterable, Identifiable {
     var recordingQuality: RecordingQuality { didSet { d.set(recordingQuality.rawValue, forKey: "recordingQuality") } }
     var liveTranscription: Bool { didSet { d.set(liveTranscription, forKey: "liveTranscription") } }
     var transcriptionLocaleID: String { didSet { d.set(transcriptionLocaleID, forKey: "transcriptionLocale") } }
-    var backupURL: String { didSet { d.set(backupURL, forKey: "backupURL") } }
     var sortOrder: NoteSort { didSet { d.set(sortOrder.rawValue, forKey: "sortOrder") } }
     /// Detect speakers automatically once a recording finishes (on-device) or uploads (cloud).
     var detectSpeakers: Bool { didSet { d.set(detectSpeakers, forKey: "detectSpeakers") } }
@@ -48,7 +47,7 @@ enum SpeakerEngine: String, CaseIterable, Identifiable {
             "defaultTitle": "Note", "includeDate": true, "includeTime": false,
             "defaultView": ViewMode.seamless.rawValue, "drawWithFinger": false,
             "recordingQuality": RecordingQuality.standard.rawValue, "liveTranscription": true,
-            "transcriptionLocale": "en-US", "backupURL": Self.defaultBackupURL, "sortOrder": NoteSort.modified.rawValue, "detectSpeakers": true,
+            "transcriptionLocale": "en-US", "sortOrder": NoteSort.modified.rawValue, "detectSpeakers": true,
             "speakerEngine": SpeakerEngine.onDevice.rawValue,
         ])
         defaultTitle = d.string(forKey: "defaultTitle") ?? "Note"
@@ -64,14 +63,10 @@ enum SpeakerEngine: String, CaseIterable, Identifiable {
         recordingQuality = RecordingQuality(rawValue: d.string(forKey: "recordingQuality") ?? "") ?? .standard
         liveTranscription = d.bool(forKey: "liveTranscription")
         transcriptionLocaleID = d.string(forKey: "transcriptionLocale") ?? "en-US"
-        backupURL = d.string(forKey: "backupURL") ?? ""
         sortOrder = NoteSort(rawValue: d.string(forKey: "sortOrder") ?? "") ?? .modified
         detectSpeakers = d.bool(forKey: "detectSpeakers")
         speakerEngine = SpeakerEngine(rawValue: d.string(forKey: "speakerEngine") ?? "") ?? .onDevice
     }
-
-    /// Pat's Neon backup Function (production branch). Not secret; the token is.
-    static let defaultBackupURL = "https://br-lucky-resonance-b44aj51v-api.compute.c-6.us-east-2.aws.neon.tech"
 
     /// "Note Sep 24, 2026" (PRD §6.10).
     func newNoteTitle(at date: Date = Date()) -> String {

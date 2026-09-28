@@ -1,0 +1,258 @@
+<title>Inkwell Screens Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Deliberately single-theme: the page wears the app's own dark chrome. */
+  :root {
+    color-scheme: dark;
+    --ground: #15181D;
+    --surface: #1E2229;
+    --raised: #262B33;
+    --line: #2E333B;
+    --ink: #ECEEF1;
+    --muted: #8E97A5;
+    --faint: #5E6673;
+    --accent: #4A90E2;
+    --accent-soft: rgba(74,144,226,.16);
+    --rec: #FF453A;
+    --paper: #FAFAF8;
+    --display: "Newsreader", "New York", Georgia, serif;
+    --body: "Instrument Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  body { background: var(--ground); color: var(--ink); font-family: var(--body); font-size: 15.5px; line-height: 1.55; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-inline: clamp(16px, 4vw, 40px); padding-block: 48px 96px; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -.01em; }
+  h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1.05; }
+  h2 { font-size: clamp(26px, 3vw, 32px); line-height: 1.15; }
+  h3 { font-size: 20px; }
+  p { margin: 0; }
+  .eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .lede { max-width: 64ch; color: #C7CCD4; font-size: 17px; }
+  code, .mono { font-family: var(--mono); font-size: .88em; }
+
+  header { display: grid; gap: 18px; padding-bottom: 36px; border-bottom: 1px solid var(--line); }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 13.5px; }
+  .meta span b { color: var(--ink); font-weight: 600; }
+
+  .ask { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-top: 8px; }
+  .ask div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .ask h3 { font-size: 17px; margin-bottom: 6px; }
+  .ask p { color: var(--muted); font-size: 14px; }
+
+  section { padding-top: 64px; display: grid; gap: 22px; }
+  .section-head { display: grid; gap: 10px; }
+  .section-head p { max-width: 68ch; color: #C7CCD4; }
+
+  figure { margin: 0; display: grid; gap: 10px; }
+  figure button { all: unset; cursor: zoom-in; display: block; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+  figure button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  figure img { display: block; width: 100%; height: auto; transition: transform .25s ease; }
+  figure button:hover img { transform: scale(1.012); }
+  figcaption { display: grid; gap: 3px; font-size: 14px; color: #C7CCD4; }
+  figcaption b { color: var(--ink); font-weight: 600; font-size: 14.5px; }
+  figcaption .file { font: 400 11.5px var(--mono); color: var(--faint); }
+
+  .hero figure button { border-radius: 16px; }
+  .states { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 26px 18px; }
+  .grid.wide { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  @media (max-width: 900px) { .states { grid-template-columns: repeat(2, 1fr); } }
+
+  .anatomy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .anatomy div { border-top: 2px solid var(--accent); padding-top: 12px; }
+  .anatomy div.rec { border-color: var(--rec); }
+  .anatomy h3 { font-family: var(--body); font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .anatomy p { color: var(--muted); font-size: 14px; }
+  @media (max-width: 720px) { .anatomy { grid-template-columns: 1fr; } }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; font: 500 12px var(--mono); padding: 3px 9px; border-radius: 99px; background: var(--accent-soft); color: #8DB9EE; white-space: nowrap; }
+  .pill.todo { background: rgba(255,255,255,.06); color: var(--muted); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  th { font: 500 11.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--surface); }
+  td:first-child { white-space: nowrap; font-weight: 600; }
+  td { color: #C7CCD4; }
+
+  ol.decisions { margin: 0; padding-left: 1.3em; display: grid; gap: 10px; max-width: 76ch; color: #C7CCD4; }
+  ol.decisions b { color: var(--ink); }
+  .note { color: var(--muted); font-size: 14px; max-width: 72ch; }
+
+  .lightbox { position: fixed; inset: 0; background: rgba(8,9,11,.92); display: grid; place-items: center; padding: 24px; z-index: 10; cursor: zoom-out; }
+  .lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  @media (prefers-reduced-motion: reduce) { figure img { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Phase 1 · Milestone M3.5 · screens review</p>
+    <h1>Inkwell, first pass</h1>
+    <p class="lede">Every screen of the iPad app as it runs today, captured in the iPad Pro 13″ simulator. The notes, handwriting, call audio and transcripts are generated demo data, but everything on screen is the real app. Replay, tap-to-seek, live transcription and crash recovery all work.</p>
+    <div class="meta">
+      <span><b>28</b> screens</span>
+      <span><b>M1–M4.5</b> built</span>
+      <span><b>10/10</b> unit tests passing</span>
+      <span>SwiftUI · PencilKit · AVAudioEngine · SpeechAnalyzer</span>
+    </div>
+    <div class="ask">
+      <div><h3>1 · The recording view</h3><p>This is my own design, not Notability's. Is a right-side panel the right shape? What's missing, and what's extra?</p></div>
+      <div><h3>2 · Portrait library</h3><p>In portrait, the library slides over the note instead of squeezing it. Keep it, or match Notability exactly?</p></div>
+      <div><h3>3 · Anything that feels off</h3><p>Spacing, icons, colors, wording. This is the moment to change direction, before polish.</p></div>
+    </div>
+  </header>
+
+  <section id="recording">
+    <div class="section-head">
+      <p class="eyebrow">PRD §6.12 · our design</p>
+      <h2>The recording view</h2>
+      <p>A Recordings panel on the right, opened from the waveform button in the top-right. The page stays visible and keeps replaying beside it. It replaces both Notability's playback ⋯ popover and its Transcripts tab.</p>
+    </div>
+    <div class="hero">
+      <figure>
+        <button type="button" data-full="img/18b-recordings-playing-landscape.jpg" aria-label="Enlarge: playing, landscape"><img src="img/18b-recordings-playing-landscape.jpg" alt="Recordings panel playing at 0:32: current transcript line highlighted, ink after that moment faded on the page" loading="eager"></button>
+        <figcaption><b>Playing.</b> At 0:32 the line being spoken is highlighted, and "priority this week" is darkening on the page as it's said. The ink written later is still faded.<span class="file">18b-recordings-playing-landscape</span></figcaption>
+      </figure>
+    </div>
+    <div class="anatomy">
+      <div><h3>Top: recordings</h3><p>Name · duration · date and time. Tap a row to see its transcript; ⋯ gives Rename, Transcribe, Delete. While recording, this becomes a live card with a timer, level meter and Stop.</p></div>
+      <div><h3>Middle: transcript</h3><p>Timestamped lines. During playback, the current line is highlighted and the list follows the playhead. Tap any line to seek, the same seek as tapping ink.</p></div>
+      <div class="rec"><h3>Bottom: transport, pinned</h3><p>A scrubber across the whole note, with a tick at each recording boundary. −10 / +10, play/pause, and speed from 0.5× to 2×.</p></div>
+    </div>
+    <div class="states">
+      <figure><button type="button" data-full="img/15-recordings-empty.jpg" aria-label="Enlarge: no recordings"><img src="img/15-recordings-empty.jpg" alt="Recordings panel with no recordings and a Start Recording button" loading="lazy"></button>
+        <figcaption><b>No recordings yet</b><span class="file">15-recordings-empty</span></figcaption></figure>
+      <figure><button type="button" data-full="img/16-recording-live.jpg" aria-label="Enlarge: recording live"><img src="img/16-recording-live.jpg" alt="Live recording card with timer and level meter above the live transcript" loading="lazy"></button>
+        <figcaption><b>Recording live</b> Volatile text is dimmed; final text is solid. The text here was real speech in your room, so I blurred it.<span class="file">16-recording-live</span></figcaption></figure>
+      <figure><button type="button" data-full="img/17-recordings-idle.jpg" aria-label="Enlarge: recorded, idle"><img src="img/17-recordings-idle.jpg" alt="Two recordings listed with the selected one's transcript below" loading="lazy"></button>
+        <figcaption><b>Recorded, idle</b><span class="file">17-recordings-idle</span></figcaption></figure>
+      <figure><button type="button" data-full="img/18-recordings-playing.jpg" aria-label="Enlarge: playing, portrait"><img src="img/18-recordings-playing.jpg" alt="Panel playing in portrait with the current line highlighted" loading="lazy"></button>
+        <figcaption><b>Playing (portrait)</b><span class="file">18-recordings-playing</span></figcaption></figure>
+    </div>
+    <div class="grid wide">
+      <figure><button type="button" data-full="img/19-replay.jpg" aria-label="Enlarge: replay"><img src="img/19-replay.jpg" alt="Faded future ink with the playback bar above the page" loading="lazy"></button>
+        <figcaption><b>Replay with the panel closed.</b> Notability's playback bar, plus a × to leave replay mode.<span class="file">19-replay</span></figcaption></figure>
+      <figure><button type="button" data-full="img/14-recording-bar.jpg" aria-label="Enlarge: recording bar"><img src="img/14-recording-bar.jpg" alt="Compact recording bar with REC timer, meter and Stop" loading="lazy"></button>
+        <figcaption><b>Recording bar.</b> The compact version while you write. Tap the timer to open the panel.<span class="file">14-recording-bar</span></figcaption></figure>
+      <figure><button type="button" data-full="img/25-crash-recovery.jpg" aria-label="Enlarge: crash recovery"><img src="img/25-crash-recovery.jpg" alt="Recording 3 recovered after a force-quit, with a Transcribe button" loading="lazy"></button>
+        <figcaption><b>Crash recovery, tested.</b> I force-quit mid-recording and relaunched: Recording 3 came back with its 40 s of audio.<span class="file">25-crash-recovery</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section id="library">
+    <div class="section-head">
+      <p class="eyebrow">PRD §6.2 – 6.3</p>
+      <h2>Library</h2>
+      <p>Sidebar with Settings, Search, Notes and Subjects. The note list shows the subject's serif title and rows with a thumbnail, title, date and mic glyph. Search also matches transcript text and shows the matching line.</p>
+    </div>
+    <div class="grid wide">
+      <figure><button type="button" data-full="img/01b-library-landscape.jpg" aria-label="Enlarge: library landscape"><img src="img/01b-library-landscape.jpg" alt="Three-column library in landscape" loading="lazy"></button>
+        <figcaption><b>Landscape:</b> three columns, as in Notability.<span class="file">01b-library-landscape</span></figcaption></figure>
+      <figure><button type="button" data-full="img/01-library-portrait.jpg" aria-label="Enlarge: library portrait"><img src="img/01-library-portrait.jpg" alt="Library sliding over the note in portrait" loading="lazy"></button>
+        <figcaption><b>Portrait:</b> the library slides over the note. <span class="pill">decision to confirm</span><span class="file">01-library-portrait</span></figcaption></figure>
+    </div>
+    <div class="grid">
+      <figure><button type="button" data-full="img/04-search.jpg" aria-label="Enlarge: search"><img src="img/04-search.jpg" alt="Search for webhooks matching a transcript line" loading="lazy"></button>
+        <figcaption><b>Search hits a transcript</b><span class="file">04-search</span></figcaption></figure>
+      <figure><button type="button" data-full="img/03-new-subject.jpg" aria-label="Enlarge: new subject"><img src="img/03-new-subject.jpg" alt="New Subject sheet with name field and 8 color swatches" loading="lazy"></button>
+        <figcaption><b>New Subject</b><span class="file">03-new-subject</span></figcaption></figure>
+      <figure><button type="button" data-full="img/02-library-empty.jpg" aria-label="Enlarge: empty library"><img src="img/02-library-empty.jpg" alt="Empty library" loading="lazy"></button>
+        <figcaption><b>Empty library</b><span class="file">02-library-empty</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section id="editor">
+    <div class="section-head">
+      <p class="eyebrow">PRD §6.4 – 6.9</p>
+      <h2>Editor &amp; tools</h2>
+      <p>The toolbar is Lasso · Pen · Pencil · Highlighter · Eraser | Record · Play | Navigate. Each ink tool shows its current color as a small bar under the icon. Pages are US Letter with the title above page 1, and the page navigator sits bottom-right.</p>
+    </div>
+    <div class="grid wide">
+      <figure><button type="button" data-full="img/06b-editor-landscape.jpg" aria-label="Enlarge: editor landscape"><img src="img/06b-editor-landscape.jpg" alt="Editor in landscape with handwriting" loading="lazy"></button>
+        <figcaption><b>Editor, landscape</b><span class="file">06b-editor-landscape</span></figcaption></figure>
+      <figure><button type="button" data-full="img/05-editor-empty.jpg" aria-label="Enlarge: empty note"><img src="img/05-editor-empty.jpg" alt="Empty note with quick paper picker at the bottom" loading="lazy"></button>
+        <figcaption><b>New note</b> with the quick paper picker<span class="file">05-editor-empty</span></figcaption></figure>
+    </div>
+    <div class="grid">
+      <figure><button type="button" data-full="img/07-tool-pen.jpg" aria-label="Enlarge: pen"><img src="img/07-tool-pen.jpg" alt="Pen sub-bar" loading="lazy"></button><figcaption><b>Pen</b><span class="file">07-tool-pen</span></figcaption></figure>
+      <figure><button type="button" data-full="img/08-tool-pencil.jpg" aria-label="Enlarge: pencil"><img src="img/08-tool-pencil.jpg" alt="Pencil sub-bar" loading="lazy"></button><figcaption><b>Pencil</b><span class="file">08-tool-pencil</span></figcaption></figure>
+      <figure><button type="button" data-full="img/09-tool-highlighter.jpg" aria-label="Enlarge: highlighter"><img src="img/09-tool-highlighter.jpg" alt="Highlighter sub-bar" loading="lazy"></button><figcaption><b>Highlighter</b><span class="file">09-tool-highlighter</span></figcaption></figure>
+      <figure><button type="button" data-full="img/10-tool-eraser.jpg" aria-label="Enlarge: eraser"><img src="img/10-tool-eraser.jpg" alt="Eraser sub-bar" loading="lazy"></button><figcaption><b>Eraser</b> Stroke / Partial<span class="file">10-tool-eraser</span></figcaption></figure>
+      <figure><button type="button" data-full="img/11-tool-lasso.jpg" aria-label="Enlarge: lasso"><img src="img/11-tool-lasso.jpg" alt="Lasso sub-bar" loading="lazy"></button><figcaption><b>Lasso</b><span class="file">11-tool-lasso</span></figcaption></figure>
+      <figure><button type="button" data-full="img/20-pages-panel.jpg" aria-label="Enlarge: pages panel"><img src="img/20-pages-panel.jpg" alt="Pages panel with a page thumbnail" loading="lazy"></button><figcaption><b>Pages panel</b> Thumbnails and bookmarks<span class="file">20-pages-panel</span></figcaption></figure>
+    </div>
+    <p class="note">Not pictured: the note ⋯ menu (Share PDF · Paper… · Rename · Move to… · Delete Note) and the long-press menus. They're standard iPadOS menus, and the simulator can't open them without taking over your screen.</p>
+  </section>
+
+  <section id="settings">
+    <div class="section-head">
+      <p class="eyebrow">PRD §6.10 – 6.11</p>
+      <h2>Paper &amp; Settings</h2>
+      <p>Settings keeps only what the PRD allows: Document, Pencil, Audio, Backup, Recently Deleted and About.</p>
+    </div>
+    <div class="grid">
+      <figure><button type="button" data-full="img/12-paper-sheet.jpg" aria-label="Enlarge: paper sheet"><img src="img/12-paper-sheet.jpg" alt="Paper sheet with four styles, six colors, orientation toggle" loading="lazy"></button><figcaption><b>Paper</b><span class="file">12-paper-sheet</span></figcaption></figure>
+      <figure><button type="button" data-full="img/21-settings-document.jpg" aria-label="Enlarge: settings document"><img src="img/21-settings-document.jpg" alt="Settings Document section" loading="lazy"></button><figcaption><b>Document</b><span class="file">21-settings-document</span></figcaption></figure>
+      <figure><button type="button" data-full="img/22-settings-audio.jpg" aria-label="Enlarge: settings audio"><img src="img/22-settings-audio.jpg" alt="Settings Audio section" loading="lazy"></button><figcaption><b>Audio</b> Quality, live transcription, speech model<span class="file">22-settings-audio</span></figcaption></figure>
+      <figure><button type="button" data-full="img/22-settings-backup.jpg" aria-label="Enlarge: settings backup"><img src="img/22-settings-backup.jpg" alt="Settings Backup section" loading="lazy"></button><figcaption><b>Backup</b> <span class="pill todo">upload is M6</span><span class="file">22-settings-backup</span></figcaption></figure>
+      <figure><button type="button" data-full="img/22-settings-recentlyDeleted.jpg" aria-label="Enlarge: recently deleted"><img src="img/22-settings-recentlyDeleted.jpg" alt="Settings Recently Deleted section" loading="lazy"></button><figcaption><b>Recently Deleted</b><span class="file">22-settings-recentlyDeleted</span></figcaption></figure>
+      <figure><button type="button" data-full="img/22-settings-about.jpg" aria-label="Enlarge: about"><img src="img/22-settings-about.jpg" alt="Settings About section" loading="lazy"></button><figcaption><b>About</b><span class="file">22-settings-about</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section id="status">
+    <div class="section-head">
+      <p class="eyebrow">PRD §12</p>
+      <h2>Where the build stands</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Milestone</th><th>State</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>M1 Library</td><td><span class="pill">done</span></td><td>Subjects CRUD, colors and reorder; notes create, rename, move, duplicate and delete; drag a note onto a subject; sort; multi-select</td></tr>
+          <tr><td>M2 Ink editor</td><td><span class="pill">done</span></td><td>Paged canvas, 4 styles × 3 spacings × 6 colors, favorites and widths saved per tool, undo/redo (plus 2- and 3-finger taps), autosave, auto-append pages, pencil-only drawing, double-tap for the eraser</td></tr>
+          <tr><td>M3 Recording</td><td><span class="pill">done</span></td><td>One mic tap feeds the file, the meter and the transcriber; multiple recordings; recording continues in the background; crash recovery verified</td></tr>
+          <tr><td>M4 Synced playback</td><td><span class="pill">done</span></td><td>One continuous timeline with boundary ticks, 0.5–2× speed, fade replay, tap ink to seek, auto-scroll</td></tr>
+          <tr><td>M4.5 Transcription</td><td><span class="pill">done</span></td><td>SpeechAnalyzer with a Dictation fallback (the simulator uses the fallback), finals saved as they arrive, tap a line to seek, Transcribe afterwards, transcript search</td></tr>
+          <tr><td>P1 already in</td><td><span class="pill">done</span></td><td>Pages panel and bookmarks, Share PDF, Recently Deleted (30 days)</td></tr>
+          <tr><td>M5 remainder</td><td><span class="pill todo">next</span></td><td>Text boxes, photos, PDF import, dividers, Single Page view</td></tr>
+          <tr><td>M6 Backup</td><td><span class="pill todo">next</span></td><td>Neon API, presigned uploads, restore. The Settings screen is ready for it.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="decisions">
+    <div class="section-head">
+      <p class="eyebrow">Judgment calls</p>
+      <h2>Decisions I made (easy to change)</h2>
+    </div>
+    <ol class="decisions">
+      <li><b>Portrait library slides over the note.</b> At 564 pt the editor column can't fit the toolbar. Landscape keeps Notability's three columns.</li>
+      <li><b>Recordings button (waveform) in the top-right</b>, next to ⋯ and Pages. Record and Play sit side by side in the toolbar, as the PRD specifies.</li>
+      <li><b>× on the playback bar</b> leaves replay mode, so ink returns to full opacity.</li>
+      <li><b>Audio is captured crash-safe, then compressed.</b> It records to PCM <code>.caf</code> and converts to AAC <code>.m4a</code> on stop. An <code>.m4a</code> file isn't readable until it's closed, so a crash would lose the recording. This is why crash recovery works.</li>
+      <li><b>Native mic sample rate</b> (48 kHz) instead of 44.1 kHz, so nothing is resampled on the audio thread.</li>
+    </ol>
+    <p class="note">Needs your real iPad and Pencil: pressure and double-tap, palm rejection, a real call played through the Mac speakers, and a partial-erase check on timed ink (M3-5). The full list is in <code>review/README.md</code>.</p>
+  </section>
+</div>
+
+<div class="lightbox" id="lightbox" hidden><img id="lightbox-img" alt=""></div>
+
+<script>
+  const lb = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lightbox-img');
+  document.querySelectorAll('figure button[data-full]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      lbImg.src = btn.dataset.full;
+      lbImg.alt = btn.querySelector('img')?.alt || '';
+      lb.hidden = false;
+    });
+  });
+  lb.addEventListener('click', () => { lb.hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') lb.hidden = true; });
+</script>

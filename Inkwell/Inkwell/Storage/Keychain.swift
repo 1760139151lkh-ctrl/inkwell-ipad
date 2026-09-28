@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// Minimal generic-password Keychain access for the backup API token.
-enum Keychain {
+nonisolated enum Keychain {
     static func read(_ key: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -21,7 +21,8 @@ enum Keychain {
         guard !value.isEmpty else { return }
         var add = base
         add[kSecValueData as String] = Data(value.utf8)
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        // Readable in the background (uploads), never synced or restored to another device.
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(add as CFDictionary, nil)
     }
 }

@@ -1,0 +1,16 @@
+AGENTS 101 — WORKSHOP AGENDA
+Clearhaven · AI Workshops · October 2026
+
+1. What an agent actually is
+   - model + tools + loop
+   - where it breaks
+
+2. Tools and context
+   - MCP servers
+   - picking the right context window
+
+3. Live build
+   - hand a transcript to Claude Code
+   - watch it file issues
+
+4. Q&A

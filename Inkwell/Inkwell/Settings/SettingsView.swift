@@ -10,7 +10,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .document: "Document"
         case .pencil: "Pencil"
         case .audio: "Audio"
-        case .backup: "Backup"
+        case .backup: "Account"
         case .recentlyDeleted: "Recently Deleted"
         case .about: "About"
         }
@@ -20,7 +20,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .document: "doc.text"
         case .pencil: "applepencil"
         case .audio: "waveform"
-        case .backup: "icloud.and.arrow.up"
+        case .backup: "person.crop.circle"
         case .recentlyDeleted: "trash"
         case .about: "info.circle"
         }
@@ -318,14 +318,18 @@ struct AudioSettings: View {
     }
 }
 
-// MARK: - Backup
+// MARK: - Account & Backup
 
 struct BackupSettings: View {
-    @State private var token = Keychain.read(BackupEngine.tokenKey) ?? ""
     @State private var confirmRestore = false
-    @State private var serverOK: Bool?
+    @State private var confirmSignOut = false
+    @State private var confirmDelete = false
+    @State private var showSignIn = false
+    @State private var working = false
+    @State private var deleteError: String?
     @Query private var notes: [Note]
     private var engine: BackupEngine { .shared }
+    private var accounts: AccountManager { .shared }
 
     private var busy: Bool {
         switch engine.phase {
@@ -335,51 +339,14 @@ struct BackupSettings: View {
     }
 
     var body: some View {
-        @Bindable var settings = AppSettings.shared
         VStack(alignment: .leading, spacing: 0) {
-            SettingsGroup(footer: "Notes back up automatically 30 seconds after you stop editing, and when you leave the app. Audio uploads after a recording stops.") {
-                SettingsRow(title: "Status", subtitle: engine.statusLine) {
-                    if busy {
-                        ProgressView()
-                    } else if case .failed = engine.phase {
-                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    } else if engine.lastBackupAt != nil {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    }
-                }
-                SettingsRow(title: "Back Up Now") {
-                    Button("Back Up") { Task { await engine.backUpNow() } }
-                        .font(.system(size: 14, weight: .semibold))
-                        .disabled(!engine.isConfigured || busy)
-                }
-                SettingsRow(title: "Restore from Backup",
-                            subtitle: engine.lastRestoreSummary ?? "Downloads notes from your backup that aren’t on this iPad.",
-                            showDivider: false) {
-                    Button("Restore") { confirmRestore = true }
-                        .font(.system(size: 14, weight: .semibold))
-                        .disabled(!engine.isConfigured || busy)
-                }
-            }
-            SettingsGroup(header: "Server", footer: serverFooter) {
-                SettingsRow(title: "API URL") {
-                    TextField("https://…", text: $settings.backupURL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .multilineTextAlignment(.trailing)
-                        .foregroundStyle(Theme.textSecondary)
-                }
-                SettingsRow(title: "Token", showDivider: false) {
-                    SecureField("Paste token", text: $token)
-                        .multilineTextAlignment(.trailing)
-                        .foregroundStyle(Theme.textSecondary)
-                        .onChange(of: token) { _, t in
-                            Keychain.write(BackupEngine.tokenKey, t.trimmingCharacters(in: .whitespacesAndNewlines))
-                            Task { await checkServer() }
-                        }
-                }
+            if let user = accounts.user {
+                signedIn(user)
+            } else {
+                signedOut
             }
         }
+        .sheet(isPresented: $showSignIn) { SignInSheet() }
         .alert("Restore from Backup?", isPresented: $confirmRestore) {
             Button("Cancel", role: .cancel) {}
             Button("Restore") { Task { await engine.restore() } }
@@ -388,20 +355,99 @@ struct BackupSettings: View {
                  ? "Downloads every note, drawing, recording, and transcript from your backup."
                  : "Notes already on this iPad are left as they are; only missing notes are downloaded.")
         }
-        .task { await checkServer() }
     }
 
-    private var serverFooter: String {
-        switch serverOK {
-        case .some(true): "Connected to your Neon backup. The token is stored in the Keychain."
-        case .some(false): "Can’t reach the backup server with this URL and token."
-        case .none: "Your Neon backup API. The token is stored in the Keychain."
+    // MARK: Signed out
+
+    private var signedOut: some View {
+        SettingsGroup(footer: "Without an account, notes stay on this iPad only. When you sign in, the notes here move into your account and back up automatically.") {
+            SettingsRow(title: "Not signed in", subtitle: "Sign in to back up your notes and open them on your other iPads.", showDivider: false) {
+                Button("Sign In") { showSignIn = true }
+                    .font(.system(size: 14, weight: .semibold))
+            }
         }
     }
 
-    private func checkServer() async {
-        guard let api = engine.api else { serverOK = nil; return }
-        serverOK = (try? await api.health()) ?? false
+    // MARK: Signed in
+
+    @ViewBuilder
+    private func signedIn(_ user: AuthClient.User) -> some View {
+        SettingsGroup(header: "Account", footer: accounts.lastSignInSummary) {
+            SettingsRow(title: user.email,
+                        subtitle: accounts.needsReauth ? "Sign-in expired — your notes are here; backup is paused." : "Signed in",
+                        showDivider: false) {
+                if accounts.needsReauth {
+                    Button("Sign In Again") { showSignIn = true }
+                        .font(.system(size: 14, weight: .semibold))
+                }
+            }
+        }
+        .padding(.bottom, 22)
+
+        SettingsGroup(header: "Backup", footer: "Notes back up automatically 30 seconds after you stop editing, and when you leave the app. Audio uploads after a recording stops.") {
+            SettingsRow(title: "Status", subtitle: engine.statusLine) {
+                if busy {
+                    ProgressView()
+                } else if case .failed = engine.phase {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                } else if engine.lastBackupAt != nil {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+            }
+            SettingsRow(title: "Back Up Now") {
+                Button("Back Up") { Task { await engine.backUpNow() } }
+                    .font(.system(size: 14, weight: .semibold))
+                    .disabled(!engine.isConfigured || busy)
+            }
+            SettingsRow(title: "Restore from Backup",
+                        subtitle: engine.lastRestoreSummary ?? "Downloads notes from your backup that aren’t on this iPad.",
+                        showDivider: false) {
+                Button("Restore") { confirmRestore = true }
+                    .font(.system(size: 14, weight: .semibold))
+                    .disabled(!engine.isConfigured || busy)
+            }
+        }
+        .padding(.bottom, 22)
+
+        SettingsGroup(footer: deleteError) {
+            SettingsRow(title: "Sign Out") {
+                Button("Sign Out") { confirmSignOut = true }
+                    .font(.system(size: 14, weight: .semibold))
+                    .disabled(working || !accounts.canSwitch)
+            }
+            SettingsRow(title: "Delete Account", subtitle: "Permanently deletes your account and everything backed up.", showDivider: false) {
+                Button("Delete…", role: .destructive) { confirmDelete = true }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.recordRed)
+                    .disabled(working || accounts.needsReauth || !accounts.canSwitch)
+            }
+        }
+        .confirmationDialog("Sign out of \(user.email)?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button("Sign Out") { Task { working = true; await accounts.signOut(removeFromDevice: false) } }
+            if accounts.unbackedNoteCount() == 0 && !accounts.needsReauth {
+                Button("Sign Out and Remove Notes from This iPad", role: .destructive) {
+                    Task { working = true; await accounts.signOut(removeFromDevice: true) }
+                }
+            }
+        } message: {
+            let pending = accounts.unbackedNoteCount()
+            Text(pending > 0
+                 ? "Your notes stay on this iPad and come back when you sign in again. \(pending) note\(pending == 1 ? " hasn’t" : "s haven’t") finished backing up yet."
+                 : "Your notes stay on this iPad and come back when you sign in again, or you can remove them — they’re all backed up.")
+        }
+        .alert("Delete your account?", isPresented: $confirmDelete) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Account", role: .destructive) {
+                Task {
+                    working = true
+                    deleteError = nil
+                    do { try await accounts.deleteAccount() } catch { deleteError = error.localizedDescription }
+                    working = false
+                }
+            }
+        } message: {
+            Text("This permanently deletes your account, every backed-up note, recording and transcript, and all handoff links, and removes your notes from this iPad. This can’t be undone.")
+        }
     }
 }
 

@@ -1,7 +1,6 @@
 #!/bin/zsh
 # Builds Inkwell (Release) and installs it on the connected iPad.
 #   scripts/deploy-ipad.sh            build + install + launch
-#   scripts/deploy-ipad.sh --no-token skip handing the backup token to the app
 #
 # Prereqs (one time): iPad plugged in (or on the same Wi-Fi after pairing) → "Trust This
 # Computer", and Settings › Privacy & Security › Developer Mode ON (the iPad restarts).
@@ -47,13 +46,9 @@ echo "→ Installing"
 xcrun devicectl device install app --device "$DEVICE_ID" "$APP" >/dev/null
 
 echo "→ Launching"
-if [[ "${1:-}" != "--no-token" && -f "$ROOT/.env.local" ]]; then
-  # Hands the backup token to the app once; it's stored in the iPad Keychain, never in the binary.
-  TOKEN="$(grep '^INKWELL_API_TOKEN=' "$ROOT/.env.local" | cut -d= -f2-)"
-  ENVJSON="$(python3 -c 'import json,sys; print(json.dumps({"INKWELL_BOOTSTRAP_TOKEN": sys.argv[1]}))' "$TOKEN")"
-  xcrun devicectl device process launch --device "$DEVICE_ID" --terminate-existing \
-    --environment-variables "$ENVJSON" studio.persimmons.inkwell >/dev/null
-else
-  xcrun devicectl device process launch --device "$DEVICE_ID" --terminate-existing studio.persimmons.inkwell >/dev/null
-fi
+# Accounts (Phase 4): the app signs in with Neon Auth, so no token is handed over any more.
+# (Pre-accounts builds received a shared token here; the iPad keeps it only until the first
+# sign-in claims that old backup.) A locked iPad can't launch apps; the install still stands.
+xcrun devicectl device process launch --device "$DEVICE_ID" --terminate-existing studio.persimmons.inkwell >/dev/null \
+  || echo "  (Couldn’t launch — unlock the iPad and open Inkwell.)"
 echo "✓ Inkwell is on ${NAME//_/ }."

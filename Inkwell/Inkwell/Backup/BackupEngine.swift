@@ -19,8 +19,9 @@ import UIKit
 
     private(set) var phase: Phase = .idle
     private(set) var lastBackupAt: Date? {
-        didSet { UserDefaults.standard.set(lastBackupAt, forKey: "backup.lastAt") }
+        didSet { UserDefaults.standard.set(lastBackupAt, forKey: Self.lastAtKey) }
     }
+    private static var lastAtKey: String { "backup.lastAt.\(StorageScope.current.id)" }
     private(set) var lastRestoreSummary: String?
 
     private var context: ModelContext?
@@ -32,20 +33,63 @@ import UIKit
     private var backgroundRun: Task<Void, Never>?
 
     private init() {
-        lastBackupAt = UserDefaults.standard.object(forKey: "backup.lastAt") as? Date
+        lastBackupAt = UserDefaults.standard.object(forKey: Self.lastAtKey) as? Date
     }
 
     // MARK: Configuration
 
     func attach(context: ModelContext) { self.context = context }
 
-    var api: BackupAPI? {
-        let s = AppSettings.shared.backupURL.trimmingCharacters(in: .whitespaces)
-        guard let url = URL(string: s), url.scheme == "https", let token = Keychain.read(Self.tokenKey), !token.isEmpty else { return nil }
-        return BackupAPI(baseURL: url, token: token)
+    /// Account switch: stop using the old store entirely.
+    func detach() {
+        debounce?.cancel()
+        context = nil
     }
 
-    static let tokenKey = "inkwell.api.token"
+    /// Loads the per-account manifest and status for the scope about to open.
+    func reload(for scope: StorageScope) {
+        manifest = BackupManifest.load()
+        lastBackupAt = UserDefaults.standard.object(forKey: Self.lastAtKey) as? Date
+        lastRestoreSummary = nil
+        phase = .idle
+    }
+
+    private var suspended = false
+
+    /// Backup/restore runs in flight, so an account switch can cancel them.
+    private var activeRuns: [UUID: Task<Void, Never>] = [:]
+
+    private func tracked(_ work: @escaping @MainActor () async -> Void) async {
+        let id = UUID()
+        let task = Task { await work() }
+        activeRuns[id] = task
+        await task.value
+        activeRuns[id] = nil
+    }
+
+    /// Blocks new runs, cancels the ones in flight and waits for them to stop.
+    func suspend() async {
+        suspended = true
+        debounce?.cancel()
+        let runs = Array(activeRuns.values)
+        for run in runs { run.cancel() }
+        for run in runs { await run.value }
+        for _ in 0..<100 where running { try? await Task.sleep(for: .milliseconds(200)) }   // backUpSingle
+    }
+
+    func resume() { suspended = false }
+
+    /// Backups belong to the signed-in account; notes made while signed out stay on the iPad.
+    var api: BackupAPI? {
+        guard let url = AppConfig.apiURL, let uid = StorageScope.current.accountID, AccountManager.shared.isSignedIn,
+              AccountManager.shared.user?.id == uid else { return nil }
+        // Bound to this account: a run that outlives a sign-out can't act as the next account.
+        return BackupAPI(baseURL: url, token: { refresh in try await AuthClient.shared.accessToken(for: uid, forceRefresh: refresh) })
+    }
+
+    /// The pre-accounts shared backup token (Keychain). Only used once, to claim that
+    /// backup for the first account signed in on this iPad; then deleted.
+    static let legacyTokenKey = "inkwell.api.token"
     var isConfigured: Bool { api != nil }
 
     var statusLine: String {
@@ -54,7 +98,9 @@ import UIKit
         case .restoring(let s): return s
         case .failed(let msg): return msg
         case .idle:
-            guard isConfigured else { return "Not set up" }
+            guard isConfigured else {
+                return AccountManager.shared.needsReauth ? "Paused — sign in again to resume" : "Sign in to back up"
+            }
             guard let last = lastBackupAt else { return "Not backed up yet" }
             return "Last backup \(last.formatted(.relative(presentation: .named)))"
         }
@@ -105,6 +151,9 @@ import UIKit
     /// A background audio upload finished (possibly after a relaunch). Records it and
     /// schedules the metadata PUT that references the new key.
     func backgroundUploadFinished(noteID: String, path: String, sha256: String, key: String, success: Bool) {
+        // Started under another account (signed out / switched since): that account's next
+        // backup re-checks the file, so don't record it in this one's manifest.
+        guard let id = UUID(uuidString: noteID), let context, fetch(id, in: context) != nil else { return }
         manifest.inFlight["\(noteID)|\(path)|\(sha256)"] = nil
         if success {
             manifest.notes[noteID, default: .init()].files[path] = .init(sha256: sha256, key: key)
@@ -124,7 +173,12 @@ import UIKit
     // MARK: Backup
 
     func backUpNow() async {
-        guard let api, let context else { return }
+        guard !suspended else { return }
+        await tracked { await self.performBackup() }
+    }
+
+    private func performBackup() async {
+        guard !suspended, let api, let context else { return }
         guard !running else { rerunRequested = true; return }
         running = true
         defer {
@@ -146,6 +200,7 @@ import UIKit
             }
             try await syncSubjects(api: api, context: context)
         } catch {
+            if (error as? BackupAPI.APIError)?.isSessionExpired == true { AccountManager.shared.sessionExpired() }
             phase = .failed(Self.describe(error))
             return
         }
@@ -160,6 +215,7 @@ import UIKit
             do {
                 try await backUp(noteID: id, api: api, context: context)
             } catch let e as BackupAPI.APIError where e.status == 401 {
+                if e.isSessionExpired { AccountManager.shared.sessionExpired() }
                 phase = .failed(Self.describe(e))
                 return
             } catch let e as BackupAPI.APIError where !e.isRetryable {
@@ -261,7 +317,8 @@ import UIKit
             let batch = Array(changed[start..<min(start + 50, changed.count)])
             let resp = try await api.call("POST", "api/uploads", body: try BackupAPI.json([
                 "noteId": id,
-                "files": batch.map { ["path": $0.path, "sha256": $0.sha256!, "contentType": $0.contentType] },
+                "files": batch.map { ["path": $0.path, "sha256": $0.sha256!, "contentType": $0.contentType,
+                                      "size": BackupFiles.size(of: $0.url)] as [String: Any] },
             ]))
             for up in resp["uploads"] as? [[String: Any]] ?? [] {
                 guard let path = up["path"] as? String, let key = up["key"] as? String,
@@ -310,13 +367,19 @@ import UIKit
 
     struct HandoffError: LocalizedError {
         var message: String
+        var needsSignIn = false
         var errorDescription: String? { message }
+    }
+
+    static var signInMessage: String {
+        AccountManager.shared.needsReauth ? "Your sign-in has expired. Sign in again to hand off notes."
+                                          : "Sign in to hand off notes — the link is served from your account’s backup."
     }
 
     /// Backs this one note up now and waits until the server has its latest state.
     /// Runs in its own task, so closing the handoff sheet can't cancel a backup half-way.
     func ensureBackedUp(_ noteID: UUID) async throws {
-        guard isConfigured, let context else { throw HandoffError(message: "Set up Backup in Settings first — the handoff link is served from your backup.") }
+        guard isConfigured, let context else { throw HandoffError(message: Self.signInMessage, needsSignIn: true) }
         // An explicit handoff is a fresh attempt even if an earlier backup parked this note.
         manifest.notes[noteID.lowercased]?.failedModifiedAt = nil
         func current() -> Bool {
@@ -340,7 +403,7 @@ import UIKit
 
     /// One note (plus subjects, which it references), without walking the whole library.
     private func backUpSingle(_ noteID: UUID) async throws {
-        guard let api, let context else { throw HandoffError(message: "Backup isn’t set up.") }
+        guard let api, let context else { throw HandoffError(message: Self.signInMessage, needsSignIn: true) }
         while running { try await Task.sleep(for: .milliseconds(300)) }
         running = true
         defer {
@@ -356,7 +419,7 @@ import UIKit
 
     /// Uploads handoff exports (export/notes.pdf, export/page-N.png); returns path → bucket key.
     func uploadExports(noteID: UUID, files: [(path: String, url: URL, contentType: String)]) async throws -> [String: String] {
-        guard let api else { throw HandoffError(message: "Backup isn’t set up.") }
+        guard let api else { throw HandoffError(message: Self.signInMessage, needsSignIn: true) }
         let id = noteID.lowercased
         let hashed: [(path: String, url: URL, contentType: String, sha: String)] = await Task.detached(priority: .userInitiated) {
             files.compactMap { f in BackupAPI.sha256(of: f.url).map { (f.path, f.url, f.contentType, $0) } }
@@ -367,7 +430,8 @@ import UIKit
             let batch = hashed[start..<min(start + 50, hashed.count)]
             let resp = try await api.call("POST", "api/uploads", body: try BackupAPI.json([
                 "noteId": id,
-                "files": batch.map { ["path": $0.path, "sha256": $0.sha, "contentType": $0.contentType] },
+                "files": batch.map { ["path": $0.path, "sha256": $0.sha, "contentType": $0.contentType,
+                                      "size": BackupFiles.size(of: $0.url)] as [String: Any] },
             ]))
             for up in resp["uploads"] as? [[String: Any]] ?? [] {
                 guard let path = up["path"] as? String, let key = up["key"] as? String,
@@ -385,7 +449,12 @@ import UIKit
     /// Downloads notes that aren't on this iPad. A note is only inserted once all of its
     /// files arrived intact; otherwise it's skipped (and can be retried) — never half-restored.
     func restore() async {
-        guard !running, let api, let context else { return }
+        guard !suspended else { return }
+        await tracked { await self.performRestore() }
+    }
+
+    private func performRestore() async {
+        guard !suspended, !running, let api, let context else { return }
         running = true
         defer { running = false }
         phase = .restoring("Fetching your notes…")
@@ -413,6 +482,7 @@ import UIKit
                 }
 
                 for item in page["notes"] as? [[String: Any]] ?? [] {
+                    if Task.isCancelled { break }
                     guard let n = item["note"] as? [String: Any], let nid = n["id"] as? String,
                           let noteID = UUID(uuidString: nid), !existingNotes.contains(noteID) else { continue }
                     phase = .restoring("Restoring “\(n["title"] as? String ?? "note")”…")
@@ -496,9 +566,7 @@ nonisolated struct BackupManifest: Codable {
         subjectInfo = try c.decodeIfPresent([String: SubjectInfo].self, forKey: .subjectInfo) ?? [:]
     }
 
-    static var url: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("backup-manifest.json")
-    }
+    static var url: URL { StorageScope.current.manifestURL }
     static func load() -> BackupManifest {
         (try? JSONDecoder().decode(BackupManifest.self, from: Data(contentsOf: url))) ?? BackupManifest()
     }
@@ -516,6 +584,11 @@ nonisolated enum BackupFiles {
         var contentType: String
         var isAudio: Bool
         var sha256: String?
+    }
+
+    /// Bytes on disk; the server signs this exact Content-Length into the upload URL.
+    nonisolated static func size(of url: URL) -> Int {
+        ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber)?.intValue ?? 0
     }
 
     @MainActor
