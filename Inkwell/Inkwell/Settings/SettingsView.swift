@@ -361,7 +361,7 @@ struct BackupSettings: View {
 
     private var signedOut: some View {
         let cloudAvailable = AppConfig.apiURL != nil && AppConfig.authURL != nil
-        SettingsGroup(footer: cloudAvailable
+        return SettingsGroup(footer: cloudAvailable
                       ? "Without an account, notes stay on this iPad only. When you sign in, the notes here move into your account and back up automatically."
                       : "笔记、手写和录音保存在此 iPad。请定期导出重要笔记；此版本尚未连接云备份。") {
             SettingsRow(title: cloudAvailable ? "Not signed in" : "本机笔记",
