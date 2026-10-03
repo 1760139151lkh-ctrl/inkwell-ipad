@@ -1,0 +1,89 @@
+name: Build and verify Inkwell for iPad
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'Inkwell/**'
+      - '.github/workflows/ipad-build.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inkwell-ipad-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 35
+    env:
+      APP_BUNDLE_ID: dev.inkwell.personal
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Select stable Apple toolchain
+        run: |
+          set -euo pipefail
+          sudo xcode-select --switch /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+          mkdir -p artifacts
+          git rev-parse HEAD > artifacts/source-commit.txt
+      - name: Build native iPad application without signing credentials
+        run: |
+          set -euo pipefail
+          xcodebuild -project Inkwell/Inkwell.xcodeproj -scheme Inkwell \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build/device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            DEVELOPMENT_TEAM= PRODUCT_BUNDLE_IDENTIFIER="$APP_BUNDLE_ID" \
+            INKWELL_API_URL= INKWELL_AUTH_URL= build 2>&1 | tee artifacts/device-build.log
+          mkdir -p build/package/Payload
+          ditto build/device/Build/Products/Release-iphoneos/Inkwell.app build/package/Payload/Inkwell.app
+          (cd build/package && ditto -c -k --keepParent Payload ../../artifacts/Inkwell-unsigned.ipa)
+          shasum -a 256 artifacts/Inkwell-unsigned.ipa > artifacts/Inkwell-unsigned.sha256
+          plutil -p build/package/Payload/Inkwell.app/Info.plist > artifacts/app-info.txt
+      - name: Select a real Apple simulator runtime for tests
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess
+          devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json']))['devices']
+          candidates = [(runtime, d) for runtime, group in devices.items() if 'iOS-26' in runtime for d in group if 'iPad' in d['name'] and d.get('isAvailable', True)]
+          if not candidates:
+              raise SystemExit('No available iOS 26 iPad simulator on this runner')
+          candidates.sort(key=lambda item: (item[0], 'Air 11-inch (M3)' in item[1]['name']), reverse=True)
+          runtime, device = candidates[0]
+          print('Selected', runtime, device['name'])
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('SIMULATOR_UDID=' + device['udid'] + '\n')
+          PY
+      - name: Run existing tests with Apple frameworks
+        run: |
+          set -euo pipefail
+          xcodebuild -project Inkwell/Inkwell.xcodeproj -scheme Inkwell \
+            -configuration Debug -sdk iphonesimulator -destination "id=$SIMULATOR_UDID" \
+            -derivedDataPath build/simulator -resultBundlePath artifacts/Inkwell-tests.xcresult \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= \
+            PRODUCT_BUNDLE_IDENTIFIER="$APP_BUNDLE_ID" INKWELL_API_URL= INKWELL_AUTH_URL= \
+            test 2>&1 | tee artifacts/simulator-tests.log
+      - name: Launch application and capture actual simulator screen
+        run: |
+          set -euo pipefail
+          xcrun simctl boot "$SIMULATOR_UDID" || true
+          xcrun simctl bootstatus "$SIMULATOR_UDID" -b
+          xcrun simctl install "$SIMULATOR_UDID" build/simulator/Build/Products/Debug-iphonesimulator/Inkwell.app
+          xcrun simctl launch "$SIMULATOR_UDID" "$APP_BUNDLE_ID"
+          sleep 4
+          xcrun simctl io "$SIMULATOR_UDID" screenshot artifacts/Inkwell-simulator.png
+          xcrun xcresulttool get test-results summary --path artifacts/Inkwell-tests.xcresult --format json > artifacts/test-summary.json
+      - name: Save application and verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Inkwell-iPad-${{ github.run_number }}
+          path: artifacts/
+          retention-days: 3

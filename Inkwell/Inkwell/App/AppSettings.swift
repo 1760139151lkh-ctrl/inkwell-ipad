@@ -43,11 +43,12 @@ enum SpeakerEngine: String, CaseIterable, Identifiable {
     var speakerEngine: SpeakerEngine { didSet { d.set(speakerEngine.rawValue, forKey: "speakerEngine") } }
 
     private init() {
+        let initialLocale = Locale.current.language.languageCode?.identifier == "zh" ? "zh-CN" : "en-US"
         d.register(defaults: [
             "defaultTitle": "Note", "includeDate": true, "includeTime": false,
             "defaultView": ViewMode.seamless.rawValue, "drawWithFinger": false,
             "recordingQuality": RecordingQuality.standard.rawValue, "liveTranscription": true,
-            "transcriptionLocale": "en-US", "sortOrder": NoteSort.modified.rawValue, "detectSpeakers": true,
+            "transcriptionLocale": initialLocale, "sortOrder": NoteSort.modified.rawValue, "detectSpeakers": true,
             "speakerEngine": SpeakerEngine.onDevice.rawValue,
         ])
         defaultTitle = d.string(forKey: "defaultTitle") ?? "Note"
@@ -62,7 +63,7 @@ enum SpeakerEngine: String, CaseIterable, Identifiable {
         drawWithFinger = d.bool(forKey: "drawWithFinger")
         recordingQuality = RecordingQuality(rawValue: d.string(forKey: "recordingQuality") ?? "") ?? .standard
         liveTranscription = d.bool(forKey: "liveTranscription")
-        transcriptionLocaleID = d.string(forKey: "transcriptionLocale") ?? "en-US"
+        transcriptionLocaleID = d.string(forKey: "transcriptionLocale") ?? initialLocale
         sortOrder = NoteSort(rawValue: d.string(forKey: "sortOrder") ?? "") ?? .modified
         detectSpeakers = d.bool(forKey: "detectSpeakers")
         speakerEngine = SpeakerEngine(rawValue: d.string(forKey: "speakerEngine") ?? "") ?? .onDevice

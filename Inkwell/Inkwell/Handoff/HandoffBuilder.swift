@@ -128,7 +128,10 @@ nonisolated enum HandoffBuilder {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
-        request.recognitionLanguages = ["en-US"]
+        let supportedLanguages = (try? request.supportedRecognitionLanguages()) ?? ["en-US"]
+        let preferredLanguages = ["zh-Hans", "zh-Hant", "en-US"].filter { supportedLanguages.contains($0) }
+        if !preferredLanguages.isEmpty { request.recognitionLanguages = preferredLanguages }
+        request.automaticallyDetectsLanguage = true
         if let region {
             // Vision's region of interest is normalized with a bottom-left origin.
             let r = region.intersection(CGRect(origin: .zero, size: pageSize))

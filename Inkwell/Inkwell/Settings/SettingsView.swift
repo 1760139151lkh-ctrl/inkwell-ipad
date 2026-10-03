@@ -360,10 +360,17 @@ struct BackupSettings: View {
     // MARK: Signed out
 
     private var signedOut: some View {
-        SettingsGroup(footer: "Without an account, notes stay on this iPad only. When you sign in, the notes here move into your account and back up automatically.") {
-            SettingsRow(title: "Not signed in", subtitle: "Sign in to back up your notes and open them on your other iPads.", showDivider: false) {
-                Button("Sign In") { showSignIn = true }
-                    .font(.system(size: 14, weight: .semibold))
+        let cloudAvailable = AppConfig.apiURL != nil && AppConfig.authURL != nil
+        SettingsGroup(footer: cloudAvailable
+                      ? "Without an account, notes stay on this iPad only. When you sign in, the notes here move into your account and back up automatically."
+                      : "笔记、手写和录音保存在此 iPad。请定期导出重要笔记；此版本尚未连接云备份。") {
+            SettingsRow(title: cloudAvailable ? "Not signed in" : "本机笔记",
+                        subtitle: cloudAvailable ? "Sign in to back up your notes and open them on your other iPads." : "离线可用 · 云备份未连接",
+                        showDivider: false) {
+                if cloudAvailable {
+                    Button("Sign In") { showSignIn = true }
+                        .font(.system(size: 14, weight: .semibold))
+                }
             }
         }
     }

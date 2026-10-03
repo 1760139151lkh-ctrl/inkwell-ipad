@@ -29,11 +29,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Inkwell records audio alongside your handwritten notes so you can replay them in sync.</string>
+	<string>Inkwell 在你记笔记时录音，让你能按书写时间回放课堂或会议内容。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Inkwell transcribes your recordings on this iPad so you can read and search them.</string>
+	<string>Inkwell 在此 iPad 上把录音转成文字，供你阅读、搜索和回放。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Inkwell lets you place photos on your note pages.</string>
+	<string>Inkwell 让你在笔记页面中插入照片。</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
