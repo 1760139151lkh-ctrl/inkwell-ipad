@@ -21,6 +21,7 @@ struct NoteEditorView: View {
         VStack(spacing: 0) {
             topBar
                 .zIndex(2)
+            fingerInputBar
             HStack(spacing: 0) {
                 ZStack(alignment: .top) {
                     CanvasHost(controller: editor.canvas)
@@ -124,6 +125,50 @@ struct NoteEditorView: View {
     }
 
     // MARK: - Top chrome
+
+    /// Keep finger writing discoverable while editing, including after an upgrade
+    /// that preserves an explicitly saved Pencil-only preference.
+    private var fingerInputBar: some View {
+        HStack(spacing: 10) {
+            Label("手指", systemImage: "hand.draw")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+            fingerModeButton("写字", draws: true)
+            fingerModeButton("浏览", draws: false)
+            Text(AppSettings.shared.drawWithFinger
+                 ? "单指写字 · 双指移动与缩放"
+                 : "单指移动页面 · Apple Pencil 可写字")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 42)
+        .background(Theme.editorChrome)
+    }
+
+    private func fingerModeButton(_ title: String, draws: Bool) -> some View {
+        let active = AppSettings.shared.drawWithFinger == draws
+        return Button {
+            AppSettings.shared.drawWithFinger = draws
+            if draws && !ToolState.shared.current.isInk {
+                editor.select(.pen)
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(active ? Theme.accent : Theme.textSecondary)
+                .padding(.horizontal, 14)
+                .frame(height: 32)
+                .background(Capsule().fill(active ? Theme.accentSoft : Theme.sidebar))
+        }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(draws ? "手指写字" : "手指浏览")
+        .accessibilityAddTraits(active ? .isSelected : [])
+        .accessibilityIdentifier(draws ? "inkwell.finger.write" : "inkwell.finger.browse")
+    }
 
     private var topBar: some View {
         // Toolbar centered in the space between the left and right groups, so nothing

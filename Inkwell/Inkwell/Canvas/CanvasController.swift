@@ -91,6 +91,7 @@ final class CanvasController: NSObject {
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         canvas.delegate = self
+        canvas.accessibilityIdentifier = "inkwell.canvas"
         canvas.drawingPolicy = AppSettings.shared.drawWithFinger ? .anyInput : .pencilOnly
         canvas.alwaysBounceVertical = true
         canvas.showsHorizontalScrollIndicator = false

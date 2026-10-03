@@ -780,7 +780,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				INFOPLIST_FILE = Inkwell/Resources/Info.plist;
 				INKWELL_API_URL = "https://br-lucky-resonance-b44aj51v-api.compute.c-6.us-east-2.aws.neon.tech";
 				INKWELL_AUTH_URL = "https://ep-patient-haze-b44plhpj.neonauth.c-6.us-east-2.aws.neon.tech/neondb/auth";
@@ -788,7 +788,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = studio.persimmons.inkwell;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
@@ -804,7 +804,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				INFOPLIST_FILE = Inkwell/Resources/Info.plist;
 				INKWELL_API_URL = "https://br-lucky-resonance-b44aj51v-api.compute.c-6.us-east-2.aws.neon.tech";
 				INKWELL_AUTH_URL = "https://ep-patient-haze-b44plhpj.neonauth.c-6.us-east-2.aws.neon.tech/neondb/auth";
@@ -812,7 +812,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = studio.persimmons.inkwell;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;

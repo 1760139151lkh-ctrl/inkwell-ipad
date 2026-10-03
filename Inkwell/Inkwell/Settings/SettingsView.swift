@@ -209,8 +209,8 @@ struct DocumentSettings: View {
 struct PencilSettings: View {
     var body: some View {
         @Bindable var settings = AppSettings.shared
-        SettingsGroup(footer: "Off: only Apple Pencil draws, and fingers scroll and zoom. Turn on to draw with a finger (useful in the Simulator).") {
-            SettingsRow(title: "Draw with finger", showDivider: false) {
+        SettingsGroup(footer: "开启后可以用手指写字，双指移动与缩放。关闭后手指浏览页面，Apple Pencil 仍可写字。编辑页面上方也可以直接切换。") {
+            SettingsRow(title: "允许手指写字", showDivider: false) {
                 Toggle("", isOn: $settings.drawWithFinger).labelsHidden()
             }
         }

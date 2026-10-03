@@ -80,6 +80,14 @@ jobs:
           sleep 4
           xcrun simctl io "$SIMULATOR_UDID" screenshot artifacts/Inkwell-simulator.png
           xcrun xcresulttool get test-results summary --path artifacts/Inkwell-tests.xcresult --format json > artifacts/test-summary.json
+      - name: Package native simulator application for Windows browser testing
+        run: |
+          set -euo pipefail
+          SIM_APP=build/simulator/Build/Products/Debug-iphonesimulator/Inkwell.app
+          ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" artifacts/Inkwell-Simulator.zip
+          shasum -a 256 artifacts/Inkwell-Simulator.zip > artifacts/Inkwell-Simulator.sha256
+          lipo -archs "$SIM_APP/Inkwell" > artifacts/simulator-architectures.txt
+          plutil -p "$SIM_APP/Info.plist" > artifacts/simulator-app-info.txt
       - name: Save application and verification evidence
         if: always()
         uses: actions/upload-artifact@v4

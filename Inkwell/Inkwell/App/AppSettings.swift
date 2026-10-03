@@ -46,7 +46,7 @@ enum SpeakerEngine: String, CaseIterable, Identifiable {
         let initialLocale = Locale.current.language.languageCode?.identifier == "zh" ? "zh-CN" : "en-US"
         d.register(defaults: [
             "defaultTitle": "Note", "includeDate": true, "includeTime": false,
-            "defaultView": ViewMode.seamless.rawValue, "drawWithFinger": false,
+            "defaultView": ViewMode.seamless.rawValue, "drawWithFinger": true,
             "recordingQuality": RecordingQuality.standard.rawValue, "liveTranscription": true,
             "transcriptionLocale": initialLocale, "sortOrder": NoteSort.modified.rawValue, "detectSpeakers": true,
             "speakerEngine": SpeakerEngine.onDevice.rawValue,
